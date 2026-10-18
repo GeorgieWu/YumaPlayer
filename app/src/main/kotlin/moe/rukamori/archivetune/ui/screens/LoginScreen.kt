@@ -174,8 +174,10 @@ fun LoginScreen(
                             },
                             "Android",
                         )
-                        loadUrl(startUrl ?: DEFAULT_LOGIN_URL)
                         webView = this
+                        resetAuthWebViewSession(context, this, clearCookies = true) {
+                            loadUrl(startUrl?.takeIf { it.isNotBlank() } ?: DEFAULT_LOGIN_URL)
+                        }
                     }
                 },
             )
