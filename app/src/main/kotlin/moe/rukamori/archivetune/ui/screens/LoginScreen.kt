@@ -25,6 +25,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -76,12 +79,15 @@ fun LoginScreen(
 
     val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val loginSuccessMessage = stringResource(R.string.login_success)
-    var webView: WebView? = null
+    val loginFailedMessage = stringResource(R.string.youtube_login_verification_failed)
+    var webView by remember { mutableStateOf<WebView?>(null) }
 
-    LaunchedEffect(screenState, loginSuccessMessage) {
+    LaunchedEffect(screenState, loginSuccessMessage, loginFailedMessage) {
         if (screenState is LoginScreenState.Success) {
             Toast.makeText(context, loginSuccessMessage, Toast.LENGTH_SHORT).show()
             navController.navigateUp()
+        } else if (screenState is LoginScreenState.Error) {
+            Toast.makeText(context, loginFailedMessage, Toast.LENGTH_LONG).show()
         }
     }
     Scaffold(
@@ -89,6 +95,13 @@ fun LoginScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.login)) },
+                actions = {
+                    if (screenState is LoginScreenState.Error) {
+                        IconButton(onClick = viewModel::retryLogin, onLongClick = viewModel::retryLogin) {
+                            Icon(painterResource(R.drawable.ic_refresh), contentDescription = stringResource(R.string.retry))
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = navController::navigateUp,
@@ -138,11 +151,6 @@ fun LoginScreen(
                                 fun onRetrieveDataSyncId(dataSyncId: String) {
                                     loginWebView.post { viewModel.onDataSyncIdExtracted(dataSyncId) }
                                 }
-
-                                @JavascriptInterface
-                                fun onRetrievePoToken(poToken: String) {
-                                    loginWebView.post { viewModel.onPoTokenExtracted(poToken) }
-                                }
                             },
                             "Android",
                         )
@@ -173,6 +181,7 @@ private class YouTubeLoginWebViewClient(
 ) : WebViewClient() {
     private var extractionRunnable: Runnable? = null
     private var lastCapturedCookie: String? = null
+    private var released = false
 
     override fun onPageFinished(view: WebView, url: String?) {
         super.onPageFinished(view, url)
@@ -185,11 +194,13 @@ private class YouTubeLoginWebViewClient(
     }
 
     fun release(view: WebView) {
+        released = true
         extractionRunnable?.let(view::removeCallbacks)
         extractionRunnable = null
     }
 
     private fun scheduleLoginContextExtraction(view: WebView, url: String?) {
+        if (released) return
         extractionRunnable?.let(view::removeCallbacks)
         extractionRunnable = null
         if (!url.isYouTubeUrl()) return
@@ -197,9 +208,10 @@ private class YouTubeLoginWebViewClient(
         var remainingAttempts = LOGIN_CONTEXT_EXTRACTION_ATTEMPTS
         val runnable = object : Runnable {
             override fun run() {
-                if (!view.url.isYouTubeUrl()) return
-                view.evaluateJavascript(LOGIN_CONTEXT_SCRIPT, null)
-                captureCookies(view.url)
+                if (released || !view.url.isYouTubeUrl()) return
+                view.evaluateJavascript(LOGIN_CONTEXT_SCRIPT) {
+                    if (!released) captureCookies(view.url)
+                }
                 remainingAttempts -= 1
                 if (remainingAttempts > 0) view.postDelayed(this, LOGIN_CONTEXT_RETRY_DELAY_MS)
             }

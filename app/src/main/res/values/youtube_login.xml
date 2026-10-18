@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_music_service_name" translatable="false">YouTube Music</string>
+    <string name="youtube_music_region">YouTube Music region</string>
+    <string name="youtube_music_region_auto">Automatic (chosen by YouTube)</string>
+    <string name="youtube_music_region_description">Used for sign-in verification, recommendations and charts.</string>
+    <string name="youtube_login_verification_failed">Could not verify sign-in. Check your YouTube Music region and connection, then retry.</string>
+</resources>

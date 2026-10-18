@@ -395,6 +395,9 @@ object YouTube {
     suspend fun accountInfo(): Result<AccountInfo> =
         AuthSessionStore.accountInfo()
 
+    suspend fun accountInfo(authState: PlaybackAuthState, requestLocale: YouTubeLocale): Result<AccountInfo> =
+        AuthSessionStore.accountInfo(authState, requestLocale)
+
     suspend fun accountChannels(): Result<List<AccountChannel>> =
         AuthSessionStore.accountChannels()
 

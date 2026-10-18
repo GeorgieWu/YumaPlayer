@@ -38,7 +38,6 @@ import androidx.navigation.NavController
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.*
-import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.ui.component.EditTextPreference
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ListPreference
@@ -52,6 +51,7 @@ import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.utils.setAppLocale
+import moe.rukamori.archivetune.utils.DEFAULT_YOUTUBE_CONTENT_REGION
 import java.util.Locale
 
 @Composable
@@ -61,8 +61,8 @@ fun ContentSettings(navController: NavController) {
     // Used only before Android 13
     val (appLanguage, onAppLanguageChange) = rememberPreference(key = AppLanguageKey, defaultValue = SYSTEM_DEFAULT)
 
-    val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = "system")
-    val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = "system")
+    val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = SYSTEM_DEFAULT)
+    val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = DEFAULT_YOUTUBE_CONTENT_REGION)
     val (playlistSuggestionSource, onPlaylistSuggestionSourceChange) =
         rememberEnumPreference(
             key = PlaylistSuggestionSourceKey,
@@ -92,46 +92,14 @@ fun ContentSettings(navController: NavController) {
                     valueText = {
                         LanguageCodeToName.getOrElse(it) { stringResource(R.string.system_default) }
                     },
-                    onValueSelected = { newValue ->
-                        val locale = Locale.getDefault()
-                        val languageTag = locale.toLanguageTag().replace("-Hant", "")
-
-                        YouTube.locale =
-                            YouTube.locale.copy(
-                                hl =
-                                    newValue.takeIf { it != SYSTEM_DEFAULT }
-                                        ?: locale.language.takeIf { it in LanguageCodeToName }
-                                        ?: languageTag.takeIf { it in LanguageCodeToName }
-                                        ?: "en",
-                            )
-
-                        onContentLanguageChange(newValue)
-                    },
+                    onValueSelected = onContentLanguageChange,
                 )
             }
 
             item {
-                ListPreference(
-                    title = { Text(stringResource(R.string.content_country)) },
-                    icon = { Icon(painterResource(R.drawable.location_on), null) },
+                YouTubeRegionPreference(
                     selectedValue = contentCountry,
-                    values = listOf(SYSTEM_DEFAULT) + CountryCodeToName.keys.toList(),
-                    valueText = {
-                        CountryCodeToName.getOrElse(it) { stringResource(R.string.system_default) }
-                    },
-                    onValueSelected = { newValue ->
-                        val locale = Locale.getDefault()
-
-                        YouTube.locale =
-                            YouTube.locale.copy(
-                                gl =
-                                    newValue.takeIf { it != SYSTEM_DEFAULT }
-                                        ?: locale.country.takeIf { it in CountryCodeToName }
-                                        ?: "US",
-                            )
-
-                        onContentCountryChange(newValue)
-                    },
+                    onValueSelected = onContentCountryChange,
                 )
             }
 

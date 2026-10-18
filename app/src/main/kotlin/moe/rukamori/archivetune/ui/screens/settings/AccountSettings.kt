@@ -131,6 +131,7 @@ import moe.rukamori.archivetune.constants.AccountChannelHandleKey
 import moe.rukamori.archivetune.constants.AccountEmailKey
 import moe.rukamori.archivetune.constants.AccountNameKey
 import moe.rukamori.archivetune.constants.DataSyncIdKey
+import moe.rukamori.archivetune.constants.ContentCountryKey
 import moe.rukamori.archivetune.constants.ForceSyncOnAccountSwitchKey
 import moe.rukamori.archivetune.constants.HideYtmLikedSongsKey
 import moe.rukamori.archivetune.constants.InnerTubeCookieKey
@@ -166,6 +167,7 @@ import moe.rukamori.archivetune.ui.theme.yumaGlassCard
 import moe.rukamori.archivetune.ui.utils.appBarScrollBehavior
 import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.utils.PreferenceStore
+import moe.rukamori.archivetune.utils.DEFAULT_YOUTUBE_CONTENT_REGION
 import moe.rukamori.archivetune.utils.SavedAccount
 import moe.rukamori.archivetune.utils.SavedAccountCollection
 import moe.rukamori.archivetune.utils.Updater
@@ -200,6 +202,7 @@ fun AccountSettings(
     val (innerTubeCookie, onInnerTubeCookieChange) = rememberPreference(InnerTubeCookieKey, "")
     val (visitorData, onVisitorDataChange) = rememberPreference(VisitorDataKey, "")
     val (dataSyncId, onDataSyncIdChange) = rememberPreference(DataSyncIdKey, "")
+    val (contentCountry, onContentCountryChange) = rememberPreference(ContentCountryKey, DEFAULT_YOUTUBE_CONTENT_REGION)
     val (useLoginForBrowse, onUseLoginForBrowseChange) = rememberPreference(UseLoginForBrowse, true)
     val (ytmSync, onYtmSyncChange) = rememberPreference(YtmSyncKey, true)
     val (forceSyncOnAccountSwitch, onForceSyncOnAccountSwitchChange) =
@@ -460,6 +463,17 @@ fun AccountSettings(
                         }
                     },
                 )
+            }
+
+            item(key = "youtube_music_region") {
+                PreferenceGroup(title = stringResource(R.string.youtube_music_service_name)) {
+                    item {
+                        YouTubeRegionPreference(
+                            selectedValue = contentCountry,
+                            onValueSelected = onContentCountryChange,
+                        )
+                    }
+                }
             }
 
             if (hasUpdate) {

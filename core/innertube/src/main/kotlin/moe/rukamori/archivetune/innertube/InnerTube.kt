@@ -447,15 +447,17 @@ class InnerTube {
         continuation: String? = null,
         setLogin: Boolean = false,
     ) = withRetry {
+        val authState = currentAuthState()
+        val includeLogin = (setLogin || useLoginForBrowse) && authState.hasLoginCookie
         httpClient.post("browse") {
-            ytClient(client, setLogin = setLogin || useLoginForBrowse)
+            ytClient(client, setLogin = includeLogin, authState = authState)
             setBody(
                 BrowseBody(
                     context =
                         client.toContext(
                             locale,
-                            visitorData,
-                            if (setLogin || useLoginForBrowse) dataSyncId else null,
+                            authState.visitorData,
+                            if (includeLogin) authState.dataSyncId else null,
                         ),
                     browseId = browseId,
                     params = params,
@@ -545,11 +547,15 @@ class InnerTube {
 
     suspend fun getSwJsData() = withRetry { httpClient.get("https://music.youtube.com/sw.js_data") }
 
-    suspend fun accountMenu(client: YouTubeClient) =
+    suspend fun accountMenu(
+        client: YouTubeClient,
+        authState: PlaybackAuthState = currentAuthState(),
+        requestLocale: YouTubeLocale = locale,
+    ) =
         withRetry {
             httpClient.post("account/account_menu") {
-                ytClient(client, setLogin = true)
-                setBody(AccountMenuBody(client.toContext(locale, visitorData, dataSyncId)))
+                ytClient(client, setLogin = true, authState = authState)
+                setBody(AccountMenuBody(client.toContext(requestLocale, authState.visitorData, authState.dataSyncId)))
             }
         }
 

@@ -191,9 +191,12 @@ object AuthSessionStore {
     suspend fun visitorData(): Result<String> =
         PlayerClient.visitorData()
 
-    suspend fun accountInfo(): Result<AccountInfo> =
+    suspend fun accountInfo(
+        authState: PlaybackAuthState = currentPlaybackAuthState(),
+        requestLocale: YouTubeLocale = locale,
+    ): Result<AccountInfo> =
         runCatching {
-            val response = innerTube.accountMenu(WEB_REMIX).body<AccountMenuResponse>()
+            val response = innerTube.accountMenu(WEB_REMIX, authState, requestLocale).body<AccountMenuResponse>()
             val accountInfo =
                 response.actions
                     .firstOrNull()

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_music_region">YouTube Music 地区</string>
+    <string name="youtube_music_region_auto">自动（由 YouTube 决定）</string>
+    <string name="youtube_music_region_description">用于登录校验、推荐内容和排行榜。</string>
+    <string name="youtube_login_verification_failed">无法验证登录，请检查 YouTube Music 地区和网络后重试。</string>
+</resources>

@@ -4,6 +4,26 @@ This document provides standardized workflows for implementing common features, 
 
 ---
 
+## YouTube Music Login and Request Context
+
+The YouTube Music region preference is available on both Account and Content
+settings. Both use `ContentCountryKey`; the default is `US`. Legacy system/CN
+values resolve to this visible default because Music account and browse requests
+reject `gl=CN` with HTTP 400. An explicit Automatic selection omits `gl`. Other
+selections are sent unchanged, and the content language remains independent.
+Settings screens only persist preferences. A single application-level collector
+applies region and language together, including changes from restored settings.
+
+Login verifies the captured cookie using an isolated auth snapshot and the same
+locale resolver over the persisted region/language. Only successful verification persists the cookie,
+available visitor data/DataSyncId, and account metadata together. Failures retain
+the previous session and expose a retry action on the login screen. DataSyncId is
+optional and is not sent during cookie verification. Saved-account switching uses
+the stored session. Browse requests omit account delegation when no login cookie
+is available, including when old preferences contain a DataSyncId.
+
+---
+
 ## 1. How to Add a New Lyrics Provider
 
 All lyrics provider implementations reside under the `:lyrics:*` submodule namespace (e.g., `:lyrics:lrclib`, `:lyrics:kugou`).

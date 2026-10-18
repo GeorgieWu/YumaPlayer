@@ -10,6 +10,7 @@ import android.content.Intent
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -27,6 +28,7 @@ import moe.rukamori.archivetune.utils.dataStore
 import moe.rukamori.archivetune.utils.get
 import moe.rukamori.archivetune.utils.potoken.BotGuardTokenGenerator
 import moe.rukamori.archivetune.utils.reportException
+import moe.rukamori.archivetune.utils.resolveYouTubeContentLocale
 import moe.rukamori.archivetune.utils.toPlaybackAuthState
 import okhttp3.Dns
 import timber.log.Timber
@@ -36,6 +38,14 @@ import java.net.Proxy
 import kotlin.system.exitProcess
 
 internal fun App.initializeDeferredAsync() {
+    applicationScope.launch {
+        dataStore.data
+            .map { resolveYouTubeContentLocale(it[ContentCountryKey], it[ContentLanguageKey]) }
+            .distinctUntilChanged()
+            .catch { reportException(it) }
+            .collect { YouTube.locale = it }
+    }
+
     applicationScope.launch(Dispatchers.IO) {
         try {
             syncUtils.trySpotifyAutoSync()
@@ -47,13 +57,6 @@ internal fun App.initializeDeferredAsync() {
     applicationScope.launch(Dispatchers.IO) {
         try {
             val prefs = dataStore.data.first()
-
-            prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
-                YouTube.locale = YouTube.locale.copy(gl = country)
-            }
-            prefs[ContentLanguageKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { lang ->
-                YouTube.locale = YouTube.locale.copy(hl = lang)
-            }
 
             LastFmServiceConfig.fromPreferences(prefs).apply(prefs[LastFMSessionKey])
 
