@@ -66,13 +66,16 @@ class YouTubeLoginRepository
                             visitorData = visitorData,
                             dataSyncId = dataSyncId,
                         ).normalized()
-                    YouTube.authState = initialAuthState
+                    // Verify the freshly captured cookie without sending a possibly stale or
+                    // malformed DataSyncId from the WebView. Resolve the account context only
+                    // after the cookie has been accepted by YouTube.
+                    YouTube.authState = initialAuthState.copy(dataSyncId = null)
+                    val accountInfo = YouTube.accountInfo().getOrThrow()
 
                     val resolvedDataSyncId = resolveRequiredDataSyncId(initialAuthState.dataSyncId)
                     val resolvedAuthState = initialAuthState.copy(dataSyncId = resolvedDataSyncId).normalized()
                     YouTube.authState = resolvedAuthState
 
-                    val accountInfo = YouTube.accountInfo().getOrThrow()
                     persistLoginSession(
                         authState = resolvedAuthState,
                         accountInfo = accountInfo,
