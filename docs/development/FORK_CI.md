@@ -7,10 +7,13 @@ merge `main` into `ci-build`, never the other way around.
 ## Trigger and outputs
 
 Every push to `ci-build` runs `.github/workflows/build.yml`. The workflow builds
-one GMS mobile universal release APK with JDK 21 and the project's Android SDK
-and Gradle versions. It uses the existing release signing key through Gradle,
-verifies the APK signature, and publishes a GitHub prerelease with the APK,
-SHA-256 checksum and source commit link. An Actions artifact is retained for
+four mobile release APKs: GMS arm64, GMS universal, FOSS arm64 and FOSS universal,
+with JDK 21 and the project's Android SDK and Gradle versions. A single Gradle
+invocation builds all four variants so they share build dependencies. It uses
+the existing release signing key through Gradle for every variant, verifies all
+four APK signatures, and publishes one GitHub prerelease with all four APKs,
+SHA-256 checksums and a source commit link. Publication requires the complete
+set of four APKs with matching versions. An Actions artifact is retained for
 14 days. Release assets are retained until explicitly removed.
 
 The workflow deliberately has no `workflow_dispatch` trigger: it lives only on
@@ -61,7 +64,7 @@ push a new commit instead of rerunning the old one.
 In this branch, both existing app update channels point to the same fork build
 stream and select `fork-v` releases, including prereleases. There is no separate
 canary package. Asset names retain the existing updater convention:
-`app-gms-mobile-universal-release.apk`. Update cache keys are namespaced for this
+`app-{gms|foss}-mobile-{arm64|universal}-release.apk`. Update cache keys are namespaced for this
 fork so an earlier installation's cached upstream releases are not reused.
 
 ## Syncing new code

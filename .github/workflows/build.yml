@@ -60,7 +60,7 @@ jobs:
           keytool -list -keystore app/keystore/release.keystore \
             -storepass:env STORE_PASSWORD -alias "$ALIAS" > /dev/null
 
-      - name: Build signed mobile universal APK
+      - name: Build four signed mobile APKs
         env:
           ALIAS: ${{ secrets.ALIAS }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -84,9 +84,12 @@ jobs:
             -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' \
             -Pkotlin.compiler.execution.strategy=in-process \
             -PforkVersionCode="$VERSION_CODE" \
-            :app:assembleGmsMobileUniversalRelease
+            :app:assembleGmsMobileArm64Release \
+            :app:assembleGmsMobileUniversalRelease \
+            :app:assembleFossMobileArm64Release \
+            :app:assembleFossMobileUniversalRelease
 
-      - name: Verify and package APK
+      - name: Verify and package all four APKs
         id: package
         shell: bash
         run: |
@@ -94,9 +97,11 @@ jobs:
           python3 .github/scripts/package-fork-apk.py
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose dist/app-gms-mobile-universal-release.apk
+          for apk in dist/*.apk; do
+            "$APKSIGNER" verify --verbose "$apk"
+          done
           cd dist
-          sha256sum app-gms-mobile-universal-release.apk > SHA256SUMS.txt
+          sha256sum ./*.apk > SHA256SUMS.txt
 
       - name: Remove restored signing key
         if: always()
@@ -132,7 +137,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$TAG" dist/app-gms-mobile-universal-release.apk dist/SHA256SUMS.txt \
+          for distribution in gms foss; do
+            for abi in arm64 universal; do
+              test -s "dist/app-${distribution}-mobile-${abi}-release.apk"
+            done
+          done
+          (cd dist && sha256sum --check SHA256SUMS.txt)
+          gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" --title "YumaPlayer fork $VERSION" \
             --notes-file dist/release-notes.md --draft --prerelease
           gh release edit "$TAG" --draft=false
