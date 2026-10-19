@@ -56,6 +56,16 @@ android {
         versionCode = 6
         versionName = "1.2.0-RC.1"
 
+        providers.gradleProperty("forkVersionCode").orNull?.let { value ->
+            val code = value.toIntOrNull()
+            require(code != null && code in 100_000_000..2_100_000_000) {
+                "forkVersionCode must be between 100000000 and 2100000000"
+            }
+            require(hasReleaseSigningConfig) { "Fork releases require the configured release signing key" }
+            versionCode = code
+            versionName = "$versionName-fork.$code"
+        }
+
         manifestPlaceholders["appName"] = "@string/app_name"
 
         val nightlyVersionName = findProperty("nightlyVersionName")?.toString()?.trim()?.takeIf { it.isNotEmpty() }
