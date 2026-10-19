@@ -10,6 +10,8 @@ Every push to `ci-build` runs `.github/workflows/build.yml`. The workflow builds
 four mobile release APKs: GMS arm64, GMS universal, FOSS arm64 and FOSS universal,
 with JDK 21 and the project's Android SDK and Gradle versions. A single Gradle
 invocation builds all four variants so they share build dependencies. It uses
+an 8 GiB JVM heap and one worker on the public repository's Ubuntu runner to
+avoid competing compiler tasks exhausting the heap. It uses
 the existing release signing key through Gradle for every variant, verifies all
 four APK signatures, and publishes one GitHub prerelease with all four APKs,
 SHA-256 checksums and a source commit link. Publication requires the complete

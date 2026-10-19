@@ -80,8 +80,8 @@ jobs:
           fi
           VERSION_CODE=$((100000000 + GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
           chmod +x gradlew
-          ./gradlew --no-daemon --max-workers=2 \
-            -Dorg.gradle.jvmargs='-Xmx3g -Dfile.encoding=UTF-8' \
+          ./gradlew --no-daemon --no-parallel --max-workers=1 \
+            -Dorg.gradle.jvmargs='-Xmx8g -Dfile.encoding=UTF-8' \
             -Pkotlin.compiler.execution.strategy=in-process \
             -PforkVersionCode="$VERSION_CODE" \
             :app:assembleGmsMobileArm64Release \
