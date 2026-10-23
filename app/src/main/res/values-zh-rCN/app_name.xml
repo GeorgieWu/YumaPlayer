@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">显示当前播放的歌曲和播放控件</string>
+    <string name="widget_album_art_description">带有悬浮播放控件的专辑封面小组件</string>
+    <string name="widget_now_playing_card_description">显示封面、进度和播放控件的正在播放卡片</string>
+    <string name="widget_playback_deck_description">显示封面、进度和播放控件的大型播放面板</string>
+    <string name="widget_playback_capsule_description">带有封面、进度和播放控件的个性化胶囊小组件</string>
+    <string name="widget_playback_spotlight_description">突出专辑封面并配有个性化播放控件的小组件</string>
+    <string name="widget_playback_command_description">以播放控制为主，显示封面、进度和切歌控件的小组件</string>
+    <string name="widget_listening_insights_description">显示最近播放、音乐流派和推荐歌曲的收听统计小组件</string>
+</resources>
