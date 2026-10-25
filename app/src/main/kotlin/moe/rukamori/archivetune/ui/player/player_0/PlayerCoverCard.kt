@@ -1,13 +1,11 @@
 package moe.rukamori.archivetune.ui.player.player_0
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -19,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
@@ -54,7 +52,6 @@ fun PlayerCoverCard(
     coverUrl: String? = null,
     modifier: Modifier = Modifier,
     placeholderResId: Int,
-    isAlbumCoverGlowEnabled: Boolean = false,
     vibrantColor: Color = Color.Transparent,
     gestureEnabled: Boolean = true,
     mediaId: String? = null,
@@ -62,20 +59,20 @@ fun PlayerCoverCard(
     artistName: String? = null,
     isPlaying: Boolean = false,
     canvasState: PlayerCanvasState = rememberPlayerCanvasState(mediaId, songTitle, artistName),
+    onCoverLoaded: () -> Unit = {}, // <-- Новый колбэк
     onNext: () -> Unit = {},
     onPrevious: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val shadowColor = MaterialTheme.colorScheme.scrim
     val surfaceColor: Color = MaterialTheme.colorScheme.surface
-    val outlineColor: Color = MaterialTheme.colorScheme.outlineVariant
 
     val haptics = LocalYumaHaptics.current
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
     val offsetX = remember { Animatable(0f) }
-    var accumulatedDragX by remember { mutableStateOf(0f) }
+    var accumulatedDragX by remember { mutableFloatStateOf(0f) }
 
     val maxTensionOffsetPx = with(density) { 60.dp.toPx() }
     val snapThresholdPx = with(density) { 80.dp.toPx() }
@@ -94,17 +91,28 @@ fun PlayerCoverCard(
                     diskCacheKey(cleanUrl)
                 }
             }
-            .crossfade(500)
             .build()
     }
 
     val painter = rememberAsyncImagePainter(model = request)
     val state by painter.state.collectAsState()
 
-    LaunchedEffect(cleanUrl) {
+    var previousPainter by remember { mutableStateOf<Painter?>(null) }
+    var lastLoadedMediaId by remember { mutableStateOf(mediaId) }
+    val newArtAlpha = remember { Animatable(1f) }
+
+    LaunchedEffect(cleanUrl, mediaId) {
         if (cleanUrl == null) {
             currentPainter = null
+            previousPainter = null
             activeVibrantColor = Color.Transparent
+            if (lastLoadedMediaId != mediaId) {
+                lastLoadedMediaId = mediaId
+                onCoverLoaded()
+            }
+        } else if (currentPainter != null && lastLoadedMediaId != mediaId) {
+            previousPainter = currentPainter
+            newArtAlpha.snapTo(0f)
         }
     }
 
@@ -113,23 +121,29 @@ fun PlayerCoverCard(
             is AsyncImagePainter.State.Success -> {
                 currentPainter = state.painter
                 activeVibrantColor = vibrantColor
+                if (lastLoadedMediaId != mediaId) {
+                    lastLoadedMediaId = mediaId
+                    onCoverLoaded()
+                    launch {
+                        newArtAlpha.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 240)
+                        )
+                    }
+                } else {
+                    newArtAlpha.snapTo(1f)
+                }
             }
             is AsyncImagePainter.State.Error -> {
                 currentPainter = null
+                previousPainter = null
                 activeVibrantColor = Color.Transparent
             }
-            is AsyncImagePainter.State.Empty -> {}
-            else -> {
-                // Keep currentPainter and activeVibrantColor during Loading
-            }
+            else -> {}
         }
     }
 
-    val animatedVibrantColor by animateColorAsState(
-        targetValue = activeVibrantColor,
-        animationSpec = tween(500),
-        label = "CoverGlowColor"
-    )
+    val shape24 = remember { RoundedCornerShape(24.dp) }
 
     Box(
         modifier = modifier
@@ -137,36 +151,22 @@ fun PlayerCoverCard(
             .graphicsLayer {
                 translationX = offsetX.value
                 val isDraggingCover = abs(offsetX.value) > 1f
-                if (isAlbumCoverGlowEnabled) {
-                    shadowElevation = if (isDraggingCover) 8.dp.toPx() else 48.dp.toPx()
-                    shape = RoundedCornerShape(24.dp)
-                    clip = false
-                    ambientShadowColor = if (isDraggingCover) shadowColor else animatedVibrantColor.copy(alpha = 0.8f)
-                    spotShadowColor = if (isDraggingCover) shadowColor.copy(alpha = 0.5f) else animatedVibrantColor
-                } else {
-                    shadowElevation = if (isDraggingCover) 8.dp.toPx() else 24.dp.toPx()
-                    shape = RoundedCornerShape(24.dp)
-                    clip = false
-                    ambientShadowColor = shadowColor
-                    spotShadowColor = shadowColor.copy(alpha = 0.6f)
-                }
+                shadowElevation = if (isDraggingCover) 6.dp.toPx() else 14.dp.toPx()
+                shape = shape24
+                clip = false
+                ambientShadowColor = shadowColor.copy(alpha = 0.5f)
+                spotShadowColor = shadowColor.copy(alpha = 0.4f)
             }
             .then(
                 if (gestureEnabled) {
                     Modifier.pointerInput(key1 = onNext, key2 = onPrevious) {
                         detectHorizontalDragGestures(
-                            onDragStart = {
-                                accumulatedDragX = 0f
-                            },
+                            onDragStart = { accumulatedDragX = 0f },
                             onDragEnd = {
                                 coroutineScope.launch {
                                     if (abs(accumulatedDragX) > snapThresholdPx) {
                                         haptics.gestureThresholdActivate()
-                                        if (accumulatedDragX > 0) {
-                                            onPrevious()
-                                        } else {
-                                            onNext()
-                                        }
+                                        if (accumulatedDragX > 0) onPrevious() else onNext()
                                     }
                                     accumulatedDragX = 0f
                                     offsetX.animateTo(
@@ -206,29 +206,35 @@ fun PlayerCoverCard(
                     Modifier
                 }
             )
-            .clip(RoundedCornerShape(24.dp))
-            .background(surfaceColor)
-            .border(BorderStroke(1.dp, outlineColor), RoundedCornerShape(24.dp)),
+            .clip(shape24)
+            .background(surfaceColor),
         contentAlignment = Alignment.Center
     ) {
         val isCanvasActive = canvasState.isCanvasEnabled && canvasState.artwork != null
+        val placeholder = painterResource(id = placeholderResId)
 
-        // 1. Статичная обложка лежит всегда — как основной арт и как бэкдроп под видео
-        androidx.compose.animation.Crossfade(
-            targetState = currentPainter,
-            animationSpec = tween(500),
-            label = "CoverCrossfade",
-        ) { targetPainter ->
-            val painter = targetPainter ?: painterResource(id = placeholderResId)
-            androidx.compose.foundation.Image(
-                painter = painter,
+        val bgPainter = previousPainter ?: currentPainter ?: placeholder
+        Image(
+            painter = bgPainter,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+
+        if (currentPainter != null && currentPainter != previousPainter) {
+            Image(
+                painter = currentPainter!!,
                 contentDescription = stringResource(R.string.album_art_large),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = newArtAlpha.value
+                    },
                 contentScale = ContentScale.Crop,
             )
         }
 
-        // 2. Канвас монтируется поверх обложки, перекрывая её без единого чёрного кадра
+        // Canvas
         if (isCanvasActive) {
             key(mediaId) {
                 CanvasArtworkPlayer(
@@ -242,4 +248,3 @@ fun PlayerCoverCard(
         }
     }
 }
-
