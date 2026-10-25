@@ -1,6 +1,6 @@
 /*
  * YumaPlayer (2026) | Original work by MuwMix
- * https://github.com/MuwMix/YumaPlayer
+ * https://github.com/MuwMx/YumaPlayer
  * GPL-3.0 License | Contributors: see git history
  */
 
@@ -146,12 +146,10 @@ internal fun UnifiedPlayerSheetLayers(
                         playbackProgress = playbackProgress,
                         updateState = updateState,
                         slideOffset = expansionFractionProvider,
-                        density = density,
                         onCollapseClick = onCollapseClick,
                         onAction = onAction,
                         onSeek = onSeek,
                         onBackgroundStyleChanged = onBackgroundStyleChanged,
-                        onImmersiveChanged = onImmersiveChanged,
                         onOpenSettingsMenu = onOpenSettingsMenu,
                         onOpenQueue = onOpenQueue,
                         onSeekStarted = onSeekStarted,

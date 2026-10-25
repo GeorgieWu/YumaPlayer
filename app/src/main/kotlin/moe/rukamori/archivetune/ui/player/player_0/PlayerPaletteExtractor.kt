@@ -8,13 +8,14 @@ import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
-import java.util.concurrent.ConcurrentHashMap
+import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.ui.theme.ExtractedColors
 import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 
+private val globalPaletteCache = object : LruCache<String, ExtractedColors>(128) {}
+private val paletteCacheLock = Any()
 @Composable
 internal fun PlayerPaletteExtractor(
     targetUrl: String?,
@@ -22,7 +23,6 @@ internal fun PlayerPaletteExtractor(
     onColorsExtracted: (vibrant: Int, darkMuted: Int, gradient: Int) -> Unit
 ) {
     val context = LocalContext.current
-    val colorCache = remember { ConcurrentHashMap<String, ExtractedColors>() }
 
     val paletteImageRequest = remember(targetUrl) {
         ImageRequest.Builder(context)
@@ -30,7 +30,7 @@ internal fun PlayerPaletteExtractor(
             .apply {
                 if (targetUrl != null) {
                     memoryCacheKey("palette:$targetUrl")
-                    diskCacheKey(targetUrl)
+                    diskCacheKey("palette:$targetUrl")
                 }
             }
             .size(128, 128)
@@ -39,39 +39,29 @@ internal fun PlayerPaletteExtractor(
     }
 
     LaunchedEffect(targetUrl, trackUrl) {
-        if (targetUrl == null) {
+        if (targetUrl == null) return@LaunchedEffect
+
+        val cached = synchronized(paletteCacheLock) { globalPaletteCache.get(targetUrl) }
+        if (cached != null) {
+            onColorsExtracted(cached.vibrant, cached.darkMuted, cached.gradient)
             return@LaunchedEffect
         }
 
-        val requestedTargetUrl = targetUrl
-        val requestedTrackUrl = trackUrl
+        val result = runCatching {
+            context.imageLoader.execute(paletteImageRequest)
+        }.getOrNull()
 
-        val cached = colorCache[requestedTargetUrl]
-        if (cached != null) {
-            onColorsExtracted(cached.vibrant, cached.darkMuted, cached.gradient)
-        } else {
-            launch {
-                val result = runCatching {
-                    context.imageLoader.execute(paletteImageRequest)
-                }.getOrNull()
-                val bitmap = withContext(Dispatchers.IO) {
-                    runCatching { result?.image?.toBitmap() }.getOrNull()
-                }
-                if (bitmap != null &&
-                    targetUrl == requestedTargetUrl &&
-                    trackUrl == requestedTrackUrl
-                ) {
-                    val colors = withContext(Dispatchers.Default) {
-                        PlayerColorExtractor.extractColors(bitmap)
-                    }
-                    if (targetUrl == requestedTargetUrl &&
-                        trackUrl == requestedTrackUrl
-                    ) {
-                        colorCache[requestedTargetUrl] = colors
-                        onColorsExtracted(colors.vibrant, colors.darkMuted, colors.gradient)
-                    }
-                }
-            }
+        val bitmap = withContext(Dispatchers.IO) {
+            runCatching { result?.image?.toBitmap() }.getOrNull()
+        } ?: return@LaunchedEffect
+
+        val colors = withContext(Dispatchers.Default) {
+            PlayerColorExtractor.extractColors(bitmap)
         }
+
+        synchronized(paletteCacheLock) {
+            globalPaletteCache.put(targetUrl, colors)
+        }
+        onColorsExtracted(colors.vibrant, colors.darkMuted, colors.gradient)
     }
 }

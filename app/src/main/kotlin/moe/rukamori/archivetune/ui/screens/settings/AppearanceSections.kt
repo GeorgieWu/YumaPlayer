@@ -287,8 +287,8 @@ fun AppearanceThemeSection(
                 onCheckedChange = onRandomHomeBackgroundOnStartupChange,
             )
         }
-
-        item(visible = homeBackgroundStyle != HomeBackgroundStyle.TONAL) {
+        val hasConfigurableEffects = homeBackgroundStyle != HomeBackgroundStyle.TONAL && homeBackgroundStyle != HomeBackgroundStyle.OFF
+        item(visible = hasConfigurableEffects) {
             SwitchPreference(
                 title = { Text(stringResource(R.string.home_background_parallax)) },
                 icon = { Icon(painterResource(R.drawable.speed), null, modifier = Modifier.size(24.dp)) },
@@ -298,9 +298,7 @@ fun AppearanceThemeSection(
         }
 
         item(
-            visible =
-                homeBackgroundStyle != HomeBackgroundStyle.TONAL &&
-                    homeBackgroundParallaxEnabled,
+            visible = hasConfigurableEffects && homeBackgroundParallaxEnabled,
         ) {
             HomeBackgroundSliderItem(
                 title = stringResource(R.string.home_background_parallax_strength),
@@ -699,6 +697,7 @@ fun HomeBackgroundSelector(
         onValueSelected = onHomeBackgroundStyleChange,
         valueText = {
             when (it) {
+                HomeBackgroundStyle.OFF -> stringResource(R.string.home_background_none)
                 HomeBackgroundStyle.TONAL -> stringResource(R.string.home_background_tonal)
                 HomeBackgroundStyle.CIRCLES -> stringResource(R.string.home_background_circles)
                 HomeBackgroundStyle.RINGS -> stringResource(R.string.home_background_rings)
@@ -707,6 +706,7 @@ fun HomeBackgroundSelector(
                 HomeBackgroundStyle.PARTICLES -> stringResource(R.string.home_background_particles)
                 HomeBackgroundStyle.SNOW -> stringResource(R.string.home_background_snow)
                 HomeBackgroundStyle.SPACE -> stringResource(R.string.home_background_space)
+                HomeBackgroundStyle.LAVA -> stringResource(R.string.home_background_lava)
             }
         },
     )
