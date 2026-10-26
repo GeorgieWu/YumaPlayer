@@ -48,6 +48,7 @@ internal object AppearanceContract {
     val HOME_BACKGROUND_BRIGHTNESS_RANGE = 0.1f..1.5f
 
     const val PALETTE_PICKER_ROUTE = "settings/appearance/palette_picker"
+    const val CANVAS_ROUTE = "settings/appearance/canvas"
 }
 
 enum class DarkMode {
@@ -75,7 +76,6 @@ data class AppearanceSettingsUiState(
     val disableAnimations: Boolean = false,
     val splashOverlayEnabled: Boolean = true,
     val splashShapePreference: SplashShapePreference = SplashShapePreference.LOGO,
-    val archiveTuneCanvas: Boolean = false,
     val homeBackgroundStyle: HomeBackgroundStyle = HomeBackgroundStyle.TONAL,
     val randomHomeBackgroundOnStartup: Boolean = false,
     val homeBackgroundParallaxEnabled: Boolean = true,
@@ -112,7 +112,7 @@ data class AppearanceSettingsUiActions(
     val onDisableAnimationsChange: (Boolean) -> Unit = {},
     val onSplashOverlayEnabledChange: (Boolean) -> Unit = {},
     val onSplashShapePreferenceChange: (SplashShapePreference) -> Unit = {},
-    val onArchiveTuneCanvasChange: (Boolean) -> Unit = {},
+    val onNavigateCanvas: () -> Unit = {},
     val onHomeBackgroundStyleChange: (HomeBackgroundStyle) -> Unit = {},
     val onRandomHomeBackgroundOnStartupChange: (Boolean) -> Unit = {},
     val onHomeBackgroundParallaxEnabledChange: (Boolean) -> Unit = {},

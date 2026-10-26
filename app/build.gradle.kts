@@ -106,6 +106,12 @@ android {
                 ?: ""
         buildConfigField("String", "CANVAS_BEARER_TOKEN", "\"$canvasBearerToken\"")
 
+        val canvasTidalToken =
+            localProperties.getProperty("CANVAS_TIDAL_TOKEN")
+                ?: System.getenv("CANVAS_TIDAL_TOKEN")
+                ?: ""
+        buildConfigField("String", "CANVAS_TIDAL_TOKEN", "\"$canvasTidalToken\"")
+
         val extractorBearer =
             localProperties.getProperty("EXTRACTOR_BEARER")
                 ?: System.getenv("EXTRACTOR_BEARER")
@@ -397,6 +403,8 @@ implementation(libs.androidx.foundation.layout)
     implementation(project(":spotifycore"))
     implementation(project(":moriextractor"))
     implementation(project(":morideobfuscator"))
+    implementation(project(":morideobfuscator-quickjs"))
+    implementation(project(":cipher-api"))
 
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)

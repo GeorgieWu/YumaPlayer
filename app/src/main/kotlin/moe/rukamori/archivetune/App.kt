@@ -22,13 +22,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.canvas.ArchiveTuneCanvas
+import moe.rukamori.archivetune.cipher.CipherBootstrap
+import moe.rukamori.archivetune.cipher.CipherEngineType
 import moe.rukamori.archivetune.constants.*
 import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.kugou.KuGou
 import moe.rukamori.archivetune.lastfm.LastFM
 import moe.rukamori.archivetune.lyrics.SharedLyricsEngine
-import moe.rukamori.archivetune.obfuscator.MoriCipherConfig
-import moe.rukamori.archivetune.obfuscator.MoriCipherRuntime
 import moe.rukamori.archivetune.ui.player.CanvasArtworkPlaybackCache
 import moe.rukamori.archivetune.utils.PreferenceStore
 import moe.rukamori.archivetune.utils.ProxyAuth
@@ -39,7 +39,6 @@ import moe.rukamori.archivetune.utils.dataStore
 import moe.rukamori.archivetune.utils.resolveYouTubeContentLocale
 import moe.rukamori.archivetune.utils.potoken.BotGuardTokenGenerator
 import timber.log.Timber
-import java.io.File
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -56,10 +55,10 @@ class App :
 
     private fun currentProcessName(): String? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            Application.getProcessName()
+            getProcessName()
         } else {
             val pid = android.os.Process.myPid()
-            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val activityManager = getSystemService(ACTIVITY_SERVICE) as? ActivityManager
             activityManager?.runningAppProcesses?.firstOrNull { it.pid == pid }?.processName
         }
 
@@ -101,13 +100,11 @@ class App :
     private fun initializeCriticalSync() {
         ProxyAuth.init()
         CanvasArtworkPlaybackCache.init(this)
-        MoriCipherRuntime.initialize(
-            MoriCipherConfig(
-                cacheDirectory = File(noBackupFilesDir, "mori_cipher"),
-                proxyProvider = { YouTube.streamProxy },
-            ),
+        CipherBootstrap.init(this, CipherEngineType.QUICKJS)
+        ArchiveTuneCanvas.initialize(
+            bearerToken = BuildConfig.CANVAS_BEARER_TOKEN,
+            tidalToken = BuildConfig.CANVAS_TIDAL_TOKEN,
         )
-        ArchiveTuneCanvas.initialize(BuildConfig.CANVAS_BEARER_TOKEN)
         SharedLyricsEngine.update()
 
         val locale = Locale.getDefault()
