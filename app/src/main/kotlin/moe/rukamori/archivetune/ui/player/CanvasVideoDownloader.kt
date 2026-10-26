@@ -7,6 +7,7 @@
 package moe.rukamori.archivetune.ui.player
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit
 
 internal class CanvasVideoDownloader(
     private val index: CanvasCacheIndex,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     companion object {
         private const val DOWNLOAD_BUFFER_SIZE_BYTES = 64 * 1024
@@ -44,7 +46,8 @@ internal class CanvasVideoDownloader(
     }
 
     private val cacheJobs = LinkedHashMap<String, Job>()
-    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val jobSources = LinkedHashMap<String, moe.rukamori.archivetune.canvas.CanvasSource?>()
+    private val downloadScope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
     private val client: OkHttpClient by lazy {
         canvasClient()
@@ -100,12 +103,38 @@ internal class CanvasVideoDownloader(
     fun cancelAll() {
         cacheJobs.values.forEach { job -> job.cancel() }
         cacheJobs.clear()
+        jobSources.clear()
     }
 
     @Synchronized
     fun cancel(mediaId: String) {
         cacheJobs.remove(mediaId)?.cancel()
+        jobSources.remove(mediaId)
     }
+
+    @Synchronized
+    fun cancelIfDifferentSource(
+        mediaId: String,
+        newSource: moe.rukamori.archivetune.canvas.CanvasSource?,
+    ) {
+        val inFlightSource = jobSources[mediaId]
+        if (inFlightSource != newSource) {
+            cancel(mediaId)
+        }
+    }
+
+    @Synchronized
+    internal fun isJobCurrent(
+        mediaId: String,
+        job: Job,
+        expectedSource: moe.rukamori.archivetune.canvas.CanvasSource?,
+    ): Boolean = cacheJobs[mediaId] === job && jobSources[mediaId] == expectedSource
+
+    @Synchronized
+    internal fun getJob(mediaId: String): Job? = cacheJobs[mediaId]
+
+    @Synchronized
+    internal fun getSource(mediaId: String): moe.rukamori.archivetune.canvas.CanvasSource? = jobSources[mediaId]
 
     fun downloadArtworkInBackground(
         directory: File,
@@ -113,21 +142,42 @@ internal class CanvasVideoDownloader(
         artwork: CanvasArtwork,
     ) {
         synchronized(this) {
-            if (cacheJobs[mediaId]?.isActive == true) return
-            cacheJobs[mediaId] =
+            val existingJob = cacheJobs[mediaId]
+            val inFlightSource = jobSources[mediaId]
+            if (existingJob?.isActive == true) {
+                if (inFlightSource != artwork.source) {
+                    existingJob.cancel()
+                    jobSources.remove(mediaId)
+                } else {
+                    return
+                }
+            }
+            jobSources[mediaId] = artwork.source
+            var job: Job? = null
+            job =
                 downloadScope.launch {
+                    val currentJob = currentCoroutineContext()[Job] ?: return@launch
                     try {
                         cacheArtworkVideos(
                             directory = directory,
                             mediaId = mediaId,
                             artwork = artwork,
+                            job = currentJob,
                         )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Timber.tag(CanvasCacheLogTag).w(e, "Canvas background download failed for %s", mediaId)
                     } finally {
                         synchronized(this@CanvasVideoDownloader) {
-                            cacheJobs.remove(mediaId)
+                            if (cacheJobs[mediaId] === currentJob) {
+                                cacheJobs.remove(mediaId)
+                                jobSources.remove(mediaId)
+                            }
                         }
                     }
                 }
+            cacheJobs[mediaId] = job
         }
     }
 
@@ -139,12 +189,54 @@ internal class CanvasVideoDownloader(
         downloadArtworkInBackground(directory, mediaId, artwork)
     }
 
+    internal fun commitFileAtomically(
+        mediaId: String,
+        partial: File,
+        target: File,
+        fileName: String,
+        job: Job,
+        expectedSource: moe.rukamori.archivetune.canvas.CanvasSource?,
+    ): String? =
+        synchronized(this) {
+            if (!job.isActive || cacheJobs[mediaId] !== job || jobSources[mediaId] != expectedSource) {
+                partial.delete()
+                return null
+            }
+            if (target.exists() && !target.delete()) {
+                partial.delete()
+                return null
+            }
+            if (!partial.renameTo(target)) {
+                partial.delete()
+                return null
+            }
+            return fileName
+        }
+
+    internal fun commitEntryAtomically(
+        mediaId: String,
+        entry: CanvasCacheEntry,
+        job: Job,
+        expectedSource: moe.rukamori.archivetune.canvas.CanvasSource?,
+        directory: File,
+    ): Boolean =
+        synchronized(this) {
+            if (!job.isActive || cacheJobs[mediaId] !== job || jobSources[mediaId] != expectedSource) {
+                return false
+            }
+            index.persistEntry(directory = directory, entry = entry)
+            return true
+        }
+
     private suspend fun cacheArtworkVideos(
         directory: File,
         mediaId: String,
         artwork: CanvasArtwork,
+        job: Job,
     ) {
-        val current = index.getEntry(mediaId)
+        if (!isJobCurrent(mediaId, job, artwork.source)) return
+
+        val current = index.getEntry(mediaId)?.takeIf { it.artwork.source == artwork.source }
         val regularFileName =
             cacheCanvasVideo(
                 directory = directory,
@@ -152,21 +244,13 @@ internal class CanvasVideoDownloader(
                 variant = CanvasVideoVariant.Regular,
                 url = artwork.downloadableRegularUrl(),
                 currentFileName = current?.regularFileName,
+                job = job,
+                expectedSource = artwork.source,
             )
-        if (regularFileName != null || current?.verticalFileName != null) {
-            index.persistEntry(
-                directory = directory,
-                entry =
-                    CanvasCacheEntry(
-                        mediaId = mediaId,
-                        artwork = artwork,
-                        regularFileName = regularFileName,
-                        verticalFileName = current?.verticalFileName,
-                        createdAtMs = current?.createdAtMs ?: System.currentTimeMillis(),
-                        lastAccessedAtMs = System.currentTimeMillis(),
-                    ),
-            )
-        }
+
+        currentCoroutineContext().ensureActive()
+        if (!isJobCurrent(mediaId, job, artwork.source)) return
+
         val verticalFileName =
             cacheCanvasVideo(
                 directory = directory,
@@ -174,7 +258,12 @@ internal class CanvasVideoDownloader(
                 variant = CanvasVideoVariant.Vertical,
                 url = artwork.downloadableVerticalUrl(),
                 currentFileName = current?.verticalFileName,
+                job = job,
+                expectedSource = artwork.source,
             )
+
+        currentCoroutineContext().ensureActive()
+        if (!isJobCurrent(mediaId, job, artwork.source)) return
 
         if (regularFileName == null && verticalFileName == null) {
             Timber.tag(CanvasCacheLogTag).d("Canvas artwork resolved without downloadable video for %s", mediaId)
@@ -192,7 +281,13 @@ internal class CanvasVideoDownloader(
                 lastAccessedAtMs = now,
             )
 
-        index.persistEntry(directory = directory, entry = entry)
+        commitEntryAtomically(
+            mediaId = mediaId,
+            entry = entry,
+            job = job,
+            expectedSource = artwork.source,
+            directory = directory,
+        )
     }
 
     private suspend fun cacheCanvasVideo(
@@ -201,6 +296,8 @@ internal class CanvasVideoDownloader(
         variant: CanvasVideoVariant,
         url: String?,
         currentFileName: String?,
+        job: Job,
+        expectedSource: moe.rukamori.archivetune.canvas.CanvasSource?,
     ): String? {
         currentFileName
             ?.takeIf { fileName ->
@@ -220,22 +317,25 @@ internal class CanvasVideoDownloader(
         val partial = File(directory, "$fileName.${java.util.UUID.randomUUID()}.part")
         return try {
             downloadToFile(url = url, target = partial)
+            currentCoroutineContext().ensureActive()
             if (partial.length() <= 0L) throw IOException("Downloaded empty canvas video")
             if (!partial.isPlayableCanvasVideo()) throw IOException("Canvas video exceeds device decoder capabilities")
-            if (target.exists() && !target.delete()) throw IOException("Failed to replace existing canvas video")
-            if (!partial.renameTo(target)) throw IOException("Failed to commit canvas video")
-            fileName
-        } catch (error: Throwable) {
-            if (error is CancellationException) throw error
-            Timber.w(error, "Failed to cache canvas video")
-            runCatching { partial.delete() }
-            currentFileName
-                ?.takeIf { fileName ->
-                    directory
-                        .resolve(fileName)
-                        .takeIf(File::isUsableFile)
-                        ?.takeIf(File::isPlayableCanvasVideo) != null
-                }
+
+            commitFileAtomically(
+                mediaId = mediaId,
+                partial = partial,
+                target = target,
+                fileName = fileName,
+                job = job,
+                expectedSource = expectedSource,
+            )
+        } catch (e: CancellationException) {
+            partial.delete()
+            throw e
+        } catch (e: Exception) {
+            partial.delete()
+            Timber.tag(CanvasCacheLogTag).w(e, "Failed to download canvas video: %s", url)
+            null
         }
     }
 

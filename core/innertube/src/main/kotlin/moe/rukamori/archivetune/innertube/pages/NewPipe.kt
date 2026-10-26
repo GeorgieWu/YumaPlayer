@@ -13,7 +13,9 @@ import io.ktor.http.parseQueryString
 import kotlinx.coroutines.CancellationException
 import moe.rukamori.archivetune.innertube.models.YouTubeClient
 import moe.rukamori.archivetune.innertube.models.response.PlayerResponse
-import moe.rukamori.archivetune.obfuscator.MoriCipherRuntime
+import moe.rukamori.archivetune.cipher.CipherBridge
+import moe.rukamori.archivetune.cipher.CipherEngineType
+import moe.rukamori.archivetune.cipher.CipherTrace
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -94,9 +96,13 @@ object NewPipeUtils {
     }
 
     suspend fun getSignatureTimestamp(videoId: String): Result<Int> {
-        MoriCipherRuntime.signatureTimestamp(videoId).getOrNull()?.let {
+        val moriResult = CipherBridge.signatureTimestamp(videoId)
+
+        moriResult.getOrNull()?.let {
             return Result.success(it)
         }
+
+        CipherTrace.log("NEWPIPE_FALLBACK", "operation=ST")
         return runCatching {
             withJavaScriptPlayerCacheRecovery {
                 YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId)
@@ -113,9 +119,14 @@ object NewPipeUtils {
         try {
             val directUrl = format.url
             if (directUrl != null) {
+                val nParam = directUrl.toHttpUrlOrNull()?.queryParameter("n")
+                val hasN = !nParam.isNullOrBlank()
+                val transform = if (hasN) "N" else "NONE"
+                CipherTrace.log("STREAM_PATH", "path=DIRECT_URL transform=$transform")
+
                 val resolvedDirectUrl =
-                    if (directUrl.toHttpUrlOrNull()?.queryParameter("n")?.isNotBlank() == true) {
-                        val nResult = MoriCipherRuntime.transformNParameter(videoId, directUrl)
+                    if (hasN) {
+                        val nResult = CipherBridge.transformN(videoId, directUrl)
                         val nResolved = nResult.getOrNull()
                         if (nResolved != null) {
                             nResolved
@@ -123,6 +134,7 @@ object NewPipeUtils {
                             val exception = nResult.exceptionOrNull()
                             System.err.println("NewPipeUtils: MoriCipherRuntime.transformNParameter failed for $videoId: ${exception?.message}")
                             exception?.printStackTrace()
+                            CipherTrace.log("NEWPIPE_FALLBACK", "operation=N_TRANSFORM")
                             getUrlWithThrottlingParameterDeobfuscated(videoId, directUrl)
                         }
                     } else {
@@ -142,7 +154,9 @@ object NewPipeUtils {
                 format.signatureCipher ?: format.cipher
                     ?: return Result.failure(ParsingException("Could not find format url"))
 
-            val mResult = MoriCipherRuntime.resolveStreamUrl(videoId, cipherString)
+            CipherTrace.log("STREAM_PATH", "path=SIGNATURE_CIPHER")
+
+            val mResult = CipherBridge.resolveStreamUrl(videoId, cipherString)
             val resolved = mResult.getOrNull()
             if (resolved != null) {
                 return Result.success(
@@ -158,6 +172,7 @@ object NewPipeUtils {
                 exception?.printStackTrace()
             }
 
+            CipherTrace.log("NEWPIPE_FALLBACK", "operation=SIGNATURE")
             val params = parseQueryString(cipherString)
             val obfuscatedSignature = params["s"] ?: throw ParsingException("Could not parse cipher signature")
             val signatureParam = params["sp"]?.takeIf { it.isNotBlank() } ?: "signature"
