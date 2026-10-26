@@ -1060,8 +1060,6 @@
     <string name="home_background_brightness">Brilho</string>
     <string name="force_high_refresh_rate">Forças altas taxas de atualização</string>
     <string name="max_supported_refresh_rate">Máximo suportado %1$d Hz</string>
-    <string name="paxsenix_api_key_configured">Configurado</string>
-    <string name="paxsenix_api_key_missing">Requerido para pedidos autenticados do Paxsenix</string>
     <string name="settings_player_subtitle">Qualidade do áudio, mescla e equalizador</string>
     <string name="settings_section_account">Conta e integrações</string>
     <string name="settings_section_appearance">Interface e aparência</string>
