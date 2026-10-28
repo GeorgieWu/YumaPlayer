@@ -6,11 +6,6 @@
 
 package moe.rukamori.archivetune.ui.screens
 
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.getValue
@@ -29,7 +24,6 @@ import moe.rukamori.archivetune.ui.screens.musicrecognition.MusicRecognitionScre
 import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResult
 import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultArgument
 import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoute
-import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoutePrefix
 import moe.rukamori.archivetune.ui.screens.search.SearchScreen
 import moe.rukamori.archivetune.ui.state.UpdateState
 import moe.rukamori.archivetune.utils.rememberPreference
@@ -148,38 +142,6 @@ fun NavGraphBuilder.navigationBuilder(
                     type = NavType.StringType
                 },
             ),
-        enterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else {
-                fadeIn(tween(250))
-            }
-        },
-        exitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else if (targetState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true) {
-                fadeOut(tween(200))
-            } else {
-                fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
-            }
-        },
-        popEnterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else if (initialState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true) {
-                fadeIn(tween(250))
-            } else {
-                fadeIn(tween(250)) + slideInHorizontally { -it / 2 }
-            }
-        },
-        popExitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else {
-                fadeOut(tween(200))
-            }
-        },
     ) {
         OnlineSearchResult(navController)
     }

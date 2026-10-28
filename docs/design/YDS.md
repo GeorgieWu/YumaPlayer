@@ -193,6 +193,24 @@ Dropdowns, context dialogs, and single-choice selectors follow **YDS 2.1 segment
 
 ---
 
+### 6.2 Navigation Transitions
+
+- **Centralized Helper:** Screen transition specifications and route matching are centralized in `NavigationTransitions` (`moe.rukamori.archivetune.ui.navigation`) to keep `NavigationHost` concise and declarative.
+- **Stacked Transitions:** Standard stacked navigation uses 350ms duration with `CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)` (no delays) without alpha fading across stacked layers:
+  - **Stack Enter:** `slideInHorizontally { it / 3 }` (350ms, cubic bezier; no fade-in).
+  - **Stack Exit:** `slideOutHorizontally { -it / 3 } + scaleOut(targetScale = 0.92f)` (both 350ms, cubic bezier; no fade-out).
+  - **Stack Pop Enter:** `slideInHorizontally { -it / 3 } + scaleIn(initialScale = 0.92f)` (both 350ms, cubic bezier; no fade-in).
+  - **Stack Pop Exit:** `slideOutHorizontally { it }` (350ms, cubic `f * f * f` easing) + `scaleOut(targetScale = 0.85f)` (350ms, cubic bezier; no fade-out).
+  - Settings screens (root and subpages) and online search inherit this centralized stacked motion policy.
+- **Exceptions:**
+  - Navigation between actual root tabs (both forward and pop) retains crossfade (`fadeIn(250)` / `fadeOut(200)`).
+- **Transparent Destinations & Backgrounds:** Destinations remain transparent to preserve the global Canvas/background. While slide and scale transitions do not alter alpha, transparent screen regions intentionally reveal the global Canvas or underlying content. Transition removal of alpha fading does not guarantee per-destination opacity.
+- **Disabled Animations:** `disableAnimations` takes top priority across all transitions, resolving immediately via zero-duration fades (`tween(0)`).
+- **Lightweight Transform Motion:** Transitions use pure transform operations without runtime blur shaders, offscreen buffers, or shared-element/container transforms.
+- **Predictive Back:** Back gesture handling delegates to standard `navigation-compose` (2.9.8) and Android manifest opt-in without explicit custom handlers.
+
+---
+
 ## 7. Component Checklist
 
 

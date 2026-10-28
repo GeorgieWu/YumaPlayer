@@ -1,11 +1,6 @@
 package moe.rukamori.archivetune
 
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,9 +27,12 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import moe.rukamori.archivetune.constants.UpdateChannel
 import moe.rukamori.archivetune.musicrecognition.MusicRecognitionRoute
+import moe.rukamori.archivetune.ui.navigation.navigationEnterTransition
+import moe.rukamori.archivetune.ui.navigation.navigationExitTransition
+import moe.rukamori.archivetune.ui.navigation.navigationPopEnterTransition
+import moe.rukamori.archivetune.ui.navigation.navigationPopExitTransition
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.screens.navigationBuilder
-import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoutePrefix
 import moe.rukamori.archivetune.ui.screens.settings.NavigationTab
 import moe.rukamori.archivetune.ui.screens.settings.SettingsScreen
 import moe.rukamori.archivetune.ui.screens.settings.UpdateScreen
@@ -92,7 +90,7 @@ fun NavigationHost(
     }
 
     val topLevelScreens = remember(navigationItems) {
-        navigationItems.map(Screens::route) + "settings"
+        navigationItems.map(Screens::route)
     }
 
     NavHost(
@@ -108,54 +106,28 @@ fun NavigationHost(
                 }
             },
         enterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else if (initialState.destination.route in topLevelScreens &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeIn(tween(250))
-            } else {
-                fadeIn(tween(250)) + slideInHorizontally { it / 2 }
-            }
+            navigationEnterTransition(
+                disableAnimations = disableAnimations,
+                topLevelScreens = topLevelScreens,
+            )
         },
         exitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else if (initialState.destination.route in topLevelScreens &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeOut(tween(200))
-            } else {
-                fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
-            }
+            navigationExitTransition(
+                disableAnimations = disableAnimations,
+                topLevelScreens = topLevelScreens,
+            )
         },
         popEnterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else if ((
-                        initialState.destination.route in topLevelScreens ||
-                                initialState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true
-                        ) &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeIn(tween(250))
-            } else {
-                fadeIn(tween(250)) + slideInHorizontally { -it }
-            }
+            navigationPopEnterTransition(
+                disableAnimations = disableAnimations,
+                topLevelScreens = topLevelScreens,
+            )
         },
         popExitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else if ((
-                        initialState.destination.route in topLevelScreens ||
-                                initialState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true
-                        ) &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeOut(tween(200))
-            } else {
-                fadeOut(tween(200)) + slideOutHorizontally { it }
-            }
+            navigationPopExitTransition(
+                disableAnimations = disableAnimations,
+                topLevelScreens = topLevelScreens,
+            )
         },
         modifier =
             modifier
