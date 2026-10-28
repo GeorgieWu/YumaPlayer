@@ -33,6 +33,9 @@ import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoutePrefix
 import moe.rukamori.archivetune.ui.screens.search.SearchScreen
 import moe.rukamori.archivetune.ui.state.UpdateState
 import moe.rukamori.archivetune.utils.rememberPreference
+import androidx.compose.runtime.CompositionLocalProvider
+import moe.rukamori.archivetune.ui.component.LocalNavAnimatedVisibilityScope
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 fun NavGraphBuilder.navigationBuilder(
@@ -45,18 +48,21 @@ fun NavGraphBuilder.navigationBuilder(
     searchScrollConnection: NestedScrollConnection? = null,
 ) {
     composable(Screens.Home.route) {
-        val useSpotify by rememberPreference(UseSpotifyHomeKey, defaultValue = false)
-        val spDc by rememberPreference(SpotifySpDcKey, defaultValue = "")
-        if (useSpotify && spDc.isNotBlank()) {
-            SpotifyHomeScreen(navController, headerScrollConnection = homeScrollConnection)
-        } else {
-            HomeScreen(navController, headerScrollConnection = homeScrollConnection)
+        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
+            val useSpotify by rememberPreference(UseSpotifyHomeKey, defaultValue = false)
+            val spDc by rememberPreference(SpotifySpDcKey, defaultValue = "")
+            if (useSpotify && spDc.isNotBlank()) {
+                SpotifyHomeScreen(navController, headerScrollConnection = homeScrollConnection)
+            } else {
+                HomeScreen(navController, headerScrollConnection = homeScrollConnection)
+            }
         }
     }
-    composable(
-        Screens.Library.route,
-    ) {
-        LibraryScreen(navController)
+
+    composable(Screens.Library.route) {
+        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
+            LibraryScreen(navController)
+        }
     }
     composable(Screens.Search.route) {
         SearchScreen(

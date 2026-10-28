@@ -193,6 +193,19 @@ Dropdowns, context dialogs, and single-choice selectors follow **YDS 2.1 segment
 
 ---
 
+### 6.2 Navigation Transitions
+
+- **Centralized Helper:** Screen transition specifications and route matching are centralized in `NavigationTransitions` (`moe.rukamori.archivetune.ui.navigation`) to keep `NavigationHost` concise and declarative.
+- **Home / Detail Motion Group:** Paired zoom transitions are strictly applied between `Screens.Home` and detail routes (`album/`, `spotify_album/`, `online_playlist/`, `local_playlist/`, `spotify_playlist/`, `auto_playlist/`, `cache_playlist/`, `top_playlist/`):
+  - Forward enter (Detail): `scaleIn(0.95f, spring(dampingRatio = 0.88f, stiffness = 150f)) + fadeIn(tween(250))`
+  - Forward exit (Home): `scaleOut(0.92f, tween(400, CubicBezierEasing(0.4f, 0f, 0.1f, 1f))) + fadeOut(0.7f, tween(400, CubicBezierEasing(0.4f, 0f, 0.1f, 1f)))`
+  - Pop enter (Home): `scaleIn(0.92f, tween(450, CubicBezierEasing(0.4f, 0f, 0.1f, 1f))) + fadeIn(0.7f, tween(450, CubicBezierEasing(0.4f, 0f, 0.1f, 1f)))`
+  - Pop exit (Detail): `scaleOut(0.95f, tween(200)) + fadeOut(tween(200))`
+- **Preservation of Other Routes:** Top-level navigation pairs retain crossfade transitions (`fadeIn(250)` / `fadeOut(200)`), preserving the `OnlineSearchResultRoutePrefix` pop exception to top-level screens. All other routes retain standard slide-and-fade transitions.
+- **Disabled Animations:** `disableAnimations` takes top priority across all transitions, resolving immediately via zero-duration fades (`tween(0)`).
+
+---
+
 ## 7. Component Checklist
 
 

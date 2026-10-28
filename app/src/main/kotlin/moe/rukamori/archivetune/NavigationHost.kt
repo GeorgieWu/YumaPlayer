@@ -1,16 +1,14 @@
 package moe.rukamori.archivetune
 
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,15 +30,19 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import moe.rukamori.archivetune.constants.UpdateChannel
 import moe.rukamori.archivetune.musicrecognition.MusicRecognitionRoute
+import moe.rukamori.archivetune.ui.component.LocalSharedTransitionScope
+import moe.rukamori.archivetune.ui.navigation.navigationEnterTransition
+import moe.rukamori.archivetune.ui.navigation.navigationExitTransition
+import moe.rukamori.archivetune.ui.navigation.navigationPopEnterTransition
+import moe.rukamori.archivetune.ui.navigation.navigationPopExitTransition
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.screens.navigationBuilder
-import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoutePrefix
 import moe.rukamori.archivetune.ui.screens.settings.NavigationTab
 import moe.rukamori.archivetune.ui.screens.settings.SettingsScreen
 import moe.rukamori.archivetune.ui.screens.settings.UpdateScreen
 import moe.rukamori.archivetune.ui.state.UpdateState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun NavigationHost(
     navController: NavHostController,
@@ -95,129 +97,109 @@ fun NavigationHost(
         navigationItems.map(Screens::route) + "settings"
     }
 
-    NavHost(
-        navController = navController,
-        startDestination =
-            if (launchMusicRecognitionFromShortcut) {
-                MusicRecognitionRoute
-            } else {
-                when (tabOpenedFromShortcut ?: defaultOpenTab) {
-                    NavigationTab.HOME -> Screens.Home.route
-                    NavigationTab.LIBRARY -> Screens.Library.route
-                    else -> Screens.Home.route
-                }
-            },
-        enterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else if (initialState.destination.route in topLevelScreens &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeIn(tween(250))
-            } else {
-                fadeIn(tween(250)) + slideInHorizontally { it / 2 }
-            }
-        },
-        exitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else if (initialState.destination.route in topLevelScreens &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeOut(tween(200))
-            } else {
-                fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
-            }
-        },
-        popEnterTransition = {
-            if (disableAnimations) {
-                fadeIn(tween(0))
-            } else if ((
-                    initialState.destination.route in topLevelScreens ||
-                        initialState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true
-                ) &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeIn(tween(250))
-            } else {
-                fadeIn(tween(250)) + slideInHorizontally { -it }
-            }
-        },
-        popExitTransition = {
-            if (disableAnimations) {
-                fadeOut(tween(0))
-            } else if ((
-                    initialState.destination.route in topLevelScreens ||
-                        initialState.destination.route?.startsWith(OnlineSearchResultRoutePrefix) == true
-                ) &&
-                targetState.destination.route in topLevelScreens
-            ) {
-                fadeOut(tween(200))
-            } else {
-                fadeOut(tween(200)) + slideOutHorizontally { it }
-            }
-        },
-        modifier =
-            modifier
-                .then(if (hazeState != null) Modifier.hazeSource(hazeState) else Modifier)
-                .then(
-                    if (isTvDevice) {
-                        Modifier
-                            .focusRequester(contentAreaFocusRequester)
-                            .focusGroup()
-                            .focusable()
+    SharedTransitionLayout(modifier = modifier) {
+        CompositionLocalProvider(
+            LocalSharedTransitionScope provides this
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination =
+                    if (launchMusicRecognitionFromShortcut) {
+                        MusicRecognitionRoute
                     } else {
-                        Modifier
+                        when (tabOpenedFromShortcut ?: defaultOpenTab) {
+                            NavigationTab.HOME -> Screens.Home.route
+                            NavigationTab.LIBRARY -> Screens.Library.route
+                            else -> Screens.Home.route
+                        }
                     },
-                ).nestedScroll(
-                    topAppBarScrollBehavior.nestedScrollConnection,
-                ),
-    ) {
-        if (BuildConfig.UPDATER_AVAILABLE) {
-            composable(
-                route = "settings/update?autostart={autostart}&download={download}",
-                arguments = listOf(
-                    navArgument("autostart") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("download") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                ),
-            ) { backStackEntry ->
-                val autostart = backStackEntry.arguments?.let { args ->
-                    val raw = args.getString("autostart") ?: args.getString("download")
-                    raw == "1" || raw.equals("true", ignoreCase = true)
-                } ?: false
+                enterTransition = {
+                    navigationEnterTransition(
+                        disableAnimations = disableAnimations,
+                        topLevelScreens = topLevelScreens,
+                    )
+                },
+                exitTransition = {
+                    navigationExitTransition(
+                        disableAnimations = disableAnimations,
+                        topLevelScreens = topLevelScreens,
+                    )
+                },
+                popEnterTransition = {
+                    navigationPopEnterTransition(
+                        disableAnimations = disableAnimations,
+                        topLevelScreens = topLevelScreens,
+                    )
+                },
+                popExitTransition = {
+                    navigationPopExitTransition(
+                        disableAnimations = disableAnimations,
+                        topLevelScreens = topLevelScreens,
+                    )
+                },
+                modifier =
+                    Modifier
+                        .then(if (hazeState != null) Modifier.hazeSource(hazeState) else Modifier)
+                        .then(
+                            if (isTvDevice) {
+                                Modifier
+                                    .focusRequester(contentAreaFocusRequester)
+                                    .focusGroup()
+                                    .focusable()
+                            } else {
+                                Modifier
+                            },
+                        ).nestedScroll(
+                            topAppBarScrollBehavior.nestedScrollConnection,
+                        ),
+            ) {
+                if (BuildConfig.UPDATER_AVAILABLE) {
+                    composable(
+                        route = "settings/update?autostart={autostart}&download={download}",
+                        arguments = listOf(
+                            navArgument("autostart") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                            navArgument("download") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                    ) { backStackEntry ->
+                        val autostart = backStackEntry.arguments?.let { args ->
+                            val raw = args.getString("autostart") ?: args.getString("download")
+                            raw == "1" || raw.equals("true", ignoreCase = true)
+                        } ?: false
 
-                UpdateScreen(
-                    navController = navController,
-                    onUpToDate = onClearUpdateBadge,
-                    autostart = autostart,
+                        UpdateScreen(
+                            navController = navController,
+                            onUpToDate = onClearUpdateBadge,
+                            autostart = autostart,
+                        )
+                    }
+                }
+
+                composable("settings") {
+                    SettingsScreen(
+                        navController = navController,
+                        updateState = updateState,
+                        onClearUpdateBadge = onClearUpdateBadge,
+                    )
+                }
+
+                navigationBuilder(
+                    navController,
+                    topAppBarScrollBehavior,
+                    updateState,
+                    disableAnimations,
+                    onClearUpdateBadge = onClearUpdateBadge,
+                    homeScrollConnection = homeScrollConnection,
+                    searchScrollConnection = searchScrollConnection,
                 )
             }
         }
-
-        composable("settings") {
-            SettingsScreen(
-                navController = navController,
-                updateState = updateState,
-                onClearUpdateBadge = onClearUpdateBadge,
-            )
-        }
-
-        navigationBuilder(
-            navController,
-            topAppBarScrollBehavior,
-            updateState,
-            disableAnimations,
-            onClearUpdateBadge = onClearUpdateBadge,
-            homeScrollConnection = homeScrollConnection,
-            searchScrollConnection = searchScrollConnection,
-        )
     }
 }
