@@ -25,8 +25,6 @@ import moe.rukamori.archivetune.ui.screens.playlist.LocalPlaylistScreen
 import moe.rukamori.archivetune.ui.screens.playlist.OnlinePlaylistScreen
 import moe.rukamori.archivetune.ui.screens.playlist.SpotifyPlaylistScreen
 import moe.rukamori.archivetune.ui.screens.playlist.TopPlaylistScreen
-import androidx.compose.runtime.CompositionLocalProvider
-import moe.rukamori.archivetune.ui.component.LocalNavAnimatedVisibilityScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun NavGraphBuilder.mediaNavigationRoutes(
@@ -42,10 +40,9 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            AlbumScreen(navController, scrollBehavior)
-        }
+        AlbumScreen(navController, scrollBehavior)
     }
+
     composable(
         route = "artist/{artistId}",
         arguments =
@@ -98,6 +95,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
     ) {
         ArtistItemsScreen(navController, scrollBehavior)
     }
+
     composable(
         route = "online_playlist/{playlistId}",
         arguments =
@@ -107,9 +105,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            OnlinePlaylistScreen(navController)
-        }
+        OnlinePlaylistScreen(navController)
     }
 
     composable(
@@ -121,9 +117,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            LocalPlaylistScreen(navController, scrollBehavior)
-        }
+        LocalPlaylistScreen(navController, scrollBehavior)
     }
 
     composable(
@@ -135,9 +129,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            SpotifyPlaylistScreen(navController, scrollBehavior)
-        }
+        SpotifyPlaylistScreen(navController, scrollBehavior)
     }
 
     composable(
@@ -149,9 +141,11 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            SpotifyAlbumScreen(navController, scrollBehavior)
-        }
+        SpotifyAlbumScreen(navController, scrollBehavior)
+    }
+
+    composable("spotify_liked_songs") {
+        SpotifyLikedSongsScreen(navController, scrollBehavior)
     }
 
     composable(
@@ -163,9 +157,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            AutoPlaylistScreen(navController, scrollBehavior)
-        }
+        AutoPlaylistScreen(navController, scrollBehavior)
     }
 
     composable(
@@ -177,9 +169,7 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            CachePlaylistScreen(navController, scrollBehavior)
-        }
+        CachePlaylistScreen(navController, scrollBehavior)
     }
 
     composable(
@@ -191,10 +181,9 @@ internal fun NavGraphBuilder.mediaNavigationRoutes(
                 },
             ),
     ) {
-        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this) {
-            TopPlaylistScreen(navController, scrollBehavior)
-        }
+        TopPlaylistScreen(navController, scrollBehavior)
     }
+
     composable(
         route = "youtube_browse/{browseId}?params={params}",
         arguments =

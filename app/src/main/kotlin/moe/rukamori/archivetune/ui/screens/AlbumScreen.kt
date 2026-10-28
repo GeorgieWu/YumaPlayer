@@ -33,9 +33,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.navigation.compose.currentBackStackEntryAsState
-import moe.rukamori.archivetune.ui.component.containerTransformTarget
-import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import moe.rukamori.archivetune.LocalDatabase
@@ -103,18 +100,11 @@ fun AlbumScreen(
         )
 
     val showTopBarTitle by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 } }
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val albumId = currentBackStackEntry?.arguments?.getString("albumId")
-        ?: screenUiState.albumWithSongs?.album?.id
 
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .containerTransformTarget(
-                    key = albumId?.let { "album_$it" },
-                    sourceCornerRadius = SettingsDimensions.LibraryCardRadius,
-                )
                 .background(Color.Transparent),
     ) {
         AlbumGradientBackground(

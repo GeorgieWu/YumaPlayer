@@ -47,7 +47,6 @@ import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.db.entities.Album
 import moe.rukamori.archivetune.playback.queues.LocalAlbumRadio
-import moe.rukamori.archivetune.ui.component.containerTransformSource
 import moe.rukamori.archivetune.ui.component.LibraryEmptyState
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
@@ -83,10 +82,6 @@ fun AlbumGridItem(
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .containerTransformSource(
-                        key = "album_${album.id}",
-                        cornerRadius = SettingsDimensions.LibraryCardRadius,
-                    )
                     .clip(RoundedCornerShape(SettingsDimensions.LibraryCardRadius)),
         ) {
             AsyncImage(
@@ -204,10 +199,6 @@ fun AlbumListRow(
             modifier =
                 Modifier
                     .size(56.dp)
-                    .containerTransformSource(
-                        key = "album_${album.id}",
-                        cornerRadius = SettingsDimensions.LibrarySmallRadius,
-                    )
                     .clip(RoundedCornerShape(SettingsDimensions.LibrarySmallRadius)),
         )
         Spacer(modifier = Modifier.width(14.dp))
