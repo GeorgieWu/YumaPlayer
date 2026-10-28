@@ -53,12 +53,12 @@ private data class ReleasesNetworkResult(
 object Updater {
     private val client = HttpClient()
     private const val ReleaseCacheCheckIntervalMs: Long = 6 * 60 * 60 * 1000L
-    private const val StableReleaseBaseUrl = "https://github.com/MuwMx/YumaPlayer/releases"
-    private const val CanaryReleaseBaseUrl = "https://github.com/MuwMx/YumaCanary/releases"
-    private val GitHubCanaryReleasesEtagKey = stringPreferencesKey("github_canary_releases_etag")
-    private val GitHubCanaryReleasesJsonKey = stringPreferencesKey("github_canary_releases_json")
-    private val GitHubCanaryReleasesLastCheckedAtKey = longPreferencesKey("github_canary_releases_last_checked_at")
-    private val GitHubCanaryReleasesFingerprintKey = stringPreferencesKey("github_canary_releases_fingerprint")
+    private const val StableReleaseBaseUrl = "https://github.com/GeorgieWu/YumaPlayer/releases"
+    private const val CanaryReleaseBaseUrl = "https://github.com/GeorgieWu/YumaPlayer/releases"
+    private val GitHubCanaryReleasesEtagKey = stringPreferencesKey("georgiewu_canary_releases_etag")
+    private val GitHubCanaryReleasesJsonKey = stringPreferencesKey("georgiewu_canary_releases_json")
+    private val GitHubCanaryReleasesLastCheckedAtKey = longPreferencesKey("georgiewu_canary_releases_last_checked_at")
+    private val GitHubCanaryReleasesFingerprintKey = stringPreferencesKey("georgiewu_canary_releases_fingerprint")
     var lastCheckTime = -1L
         private set
     private var latestReleaseTag: String? = null
@@ -84,8 +84,8 @@ object Updater {
                 else -> ""
             }
 
-    private fun releaseArtifactName(isCanary: Boolean = false): String {
-        val suffix = if (isCanary) "canary.apk" else "release.apk"
+    private fun releaseArtifactName(): String {
+        val suffix = "release.apk"
         return "app-$artifactPrefix${BuildConfig.DEVICE}-${BuildConfig.ARCHITECTURE}-$suffix"
     }
 
@@ -251,8 +251,8 @@ object Updater {
 
     internal fun findLatestRelease(releases: List<ReleaseInfo>): ReleaseInfo? {
         if (releases.isEmpty()) return null
-        val stableReleases = releases.filter { !it.prerelease }
-        val target = stableReleases.ifEmpty { return null }
+        // This branch distributes automated fork prereleases through both update channels.
+        val target = releases.filter { it.tagName.startsWith("fork-v") }.ifEmpty { return null }
         val parsed =
             target.mapNotNull { release ->
                 parseReleaseSemVerOrNull(release)?.let { version -> version to release }
@@ -265,17 +265,7 @@ object Updater {
         return candidates.maxWithOrNull(compareBy({ it.first }, { it.second.publishedAt }))?.second
     }
 
-    internal fun findLatestCanaryRelease(releases: List<ReleaseInfo>): ReleaseInfo? {
-        if (releases.isEmpty()) return null
-        val parsed =
-            releases.mapNotNull { release ->
-                parseReleaseSemVerOrNull(release)?.let { version -> version to release }
-            }
-        if (parsed.isEmpty()) return releases.firstOrNull { it.prerelease } ?: releases.firstOrNull()
-        val canary = parsed.filter { it.second.prerelease || it.first.canaryDate != null }
-        val candidates = canary.ifEmpty { parsed }
-        return candidates.maxWithOrNull(compareBy({ it.first }, { it.second.publishedAt }))?.second
-    }
+    internal fun findLatestCanaryRelease(releases: List<ReleaseInfo>): ReleaseInfo? = findLatestRelease(releases)
 
     internal fun preferredReleaseVersionNameOrNull(release: ReleaseInfo): String? =
         parseReleaseSemVerOrNull(release)?.normalizedName()
@@ -292,10 +282,9 @@ object Updater {
 
     private fun findMatchingAssetDownloadUrl(
         assets: JSONArray?,
-        isCanary: Boolean = false,
     ): String? {
         if (assets == null || assets.length() == 0) return null
-        val targetType = if (isCanary) "canary" else "release"
+        val targetType = "release"
         val archPrefix = "app-$artifactPrefix${BuildConfig.DEVICE}-${BuildConfig.ARCHITECTURE}"
         val universalPrefix = "app-$artifactPrefix${BuildConfig.DEVICE}-universal"
 
@@ -318,14 +307,13 @@ object Updater {
 
     private fun parseReleasesJson(
         json: String,
-        isCanary: Boolean = false,
     ): List<ReleaseInfo> {
         val jsonArray = JSONArray(json)
         val releases = ArrayList<ReleaseInfo>(jsonArray.length())
         for (i in 0 until jsonArray.length()) {
             val item = jsonArray.getJSONObject(i)
             val assets = item.optJSONArray("assets")
-            val assetDownloadUrl = findMatchingAssetDownloadUrl(assets, isCanary = isCanary)
+            val assetDownloadUrl = findMatchingAssetDownloadUrl(assets)
             val body = if (item.has("body") && !item.isNull("body")) item.optString("body") else null
             val downloadUrl =
                 if (item.isNull("download_url")) {
@@ -398,9 +386,8 @@ object Updater {
     private suspend fun fetchReleasesNetwork(
         perPage: Int,
         cachedEtag: String?,
-        isCanary: Boolean = false,
     ): ReleasesNetworkResult {
-        val repo = if (isCanary) "MuwMx/YumaCanary" else "MuwMx/YumaPlayer"
+        val repo = "GeorgieWu/YumaPlayer"
         val response: HttpResponse =
             client.get("https://api.github.com/repos/$repo/releases?per_page=$perPage") {
                 headers {
@@ -453,7 +440,7 @@ object Updater {
             ?.takeIf { it.isNotBlank() }
             ?.let {
                 runCatching {
-                    parseReleasesJson(it, isCanary = true)
+                    parseReleasesJson(it)
                 }.getOrNull()
             }
             ?: emptyList()
@@ -515,7 +502,7 @@ object Updater {
                     ?.takeIf { it.isNotBlank() }
                     ?.let {
                         runCatching {
-                            parseReleasesJson(it, isCanary = true)
+                            parseReleasesJson(it)
                         }.getOrNull()
                     }
 
@@ -532,7 +519,6 @@ object Updater {
                     fetchReleasesNetwork(
                         perPage = perPage,
                         cachedEtag = cachedEtag,
-                        isCanary = true,
                     )
                 }.getOrNull()
 
@@ -559,7 +545,7 @@ object Updater {
                     val networkBody = networkResult.body
                     val releases =
                         runCatching {
-                            parseReleasesJson(networkBody, isCanary = true)
+                            parseReleasesJson(networkBody)
                         }.getOrNull().orEmpty()
 
                     if (releases.isNotEmpty()) {
@@ -604,13 +590,13 @@ object Updater {
 
     suspend fun getCommitHistory(
         count: Int = 30,
-        branch: String = "",
+        branch: String = "ci-build",
     ): Result<List<GitCommit>> =
         runCatching {
             val url = if (branch.isNotBlank()) {
-                "https://api.github.com/repos/MuwMx/YumaPlayer/commits?sha=$branch&per_page=$count"
+                "https://api.github.com/repos/GeorgieWu/YumaPlayer/commits?sha=$branch&per_page=$count"
             } else {
-                "https://api.github.com/repos/MuwMx/YumaPlayer/commits?per_page=$count"
+                "https://api.github.com/repos/GeorgieWu/YumaPlayer/commits?per_page=$count"
             }
             val response = client.get(url) {
                 headers {
@@ -670,7 +656,7 @@ object Updater {
             return "$CanaryReleaseBaseUrl/latest"
         }
 
-        val artifactName = releaseArtifactName(isCanary = true)
+        val artifactName = releaseArtifactName()
         val tag = latestCanaryReleaseTag
         if (tag != null) {
             return "$CanaryReleaseBaseUrl/download/$tag/$artifactName"

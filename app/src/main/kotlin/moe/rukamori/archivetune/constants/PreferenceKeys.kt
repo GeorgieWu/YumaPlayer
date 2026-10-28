@@ -823,10 +823,10 @@ val GitHubContributorsLastCheckedAtKey = longPreferencesKey("github_contributors
 val GitHubTranslationContributorsJsonKey = stringPreferencesKey("github_translation_contributors_json")
 val GitHubTranslationContributorsLastCheckedAtKey = longPreferencesKey("github_translation_contributors_last_checked_at")
 
-val GitHubReleasesEtagKey = stringPreferencesKey("github_releases_etag")
-val GitHubReleasesJsonKey = stringPreferencesKey("github_releases_json")
-val GitHubReleasesLastCheckedAtKey = longPreferencesKey("github_releases_last_checked_at")
-val GitHubReleasesFingerprintKey = stringPreferencesKey("github_releases_fingerprint")
+val GitHubReleasesEtagKey = stringPreferencesKey("georgiewu_releases_etag")
+val GitHubReleasesJsonKey = stringPreferencesKey("georgiewu_releases_json")
+val GitHubReleasesLastCheckedAtKey = longPreferencesKey("georgiewu_releases_last_checked_at")
+val GitHubReleasesFingerprintKey = stringPreferencesKey("georgiewu_releases_fingerprint")
 val DismissedUpdateVersionKey = stringPreferencesKey("dismissed_update_version")
 
 val TogetherOnlineEndpointCacheKey = stringPreferencesKey("together_online_endpoint_cache")
