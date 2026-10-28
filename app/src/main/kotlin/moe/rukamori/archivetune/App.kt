@@ -26,7 +26,7 @@ import moe.rukamori.archivetune.cipher.CipherBootstrap
 import moe.rukamori.archivetune.cipher.CipherEngineType
 import moe.rukamori.archivetune.constants.*
 import moe.rukamori.archivetune.innertube.YouTube
-import moe.rukamori.archivetune.innertube.models.YouTubeLocale
+import moe.rukamori.archivetune.utils.resolveYouTubeContentLocale
 import moe.rukamori.archivetune.kugou.KuGou
 import moe.rukamori.archivetune.lastfm.LastFM
 import moe.rukamori.archivetune.lyrics.SharedLyricsEngine
@@ -109,12 +109,7 @@ class App :
 
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "")
-        YouTube.locale = YouTubeLocale(
-            gl = locale.country.takeIf { it in CountryCodeToName } ?: "US",
-            hl = locale.language.takeIf { it in LanguageCodeToName }
-                ?: languageTag.takeIf { it in LanguageCodeToName }
-                ?: "en",
-        )
+        YouTube.locale = resolveYouTubeContentLocale(systemLocale = locale)
         if (languageTag == "zh-TW") KuGou.useTraditionalChinese = true
         LastFM.initialize(apiKey = BuildConfig.LASTFM_API_KEY, secret = BuildConfig.LASTFM_SECRET)
         moe.rukamori.archivetune.spotify.Spotify.logger = { level, message ->

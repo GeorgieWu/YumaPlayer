@@ -51,6 +51,8 @@ import moe.rukamori.archivetune.ui.component.SwitchPreference
 import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
+import moe.rukamori.archivetune.utils.DEFAULT_YOUTUBE_CONTENT_REGION
+import moe.rukamori.archivetune.utils.youTubeContentRegionCode
 import moe.rukamori.archivetune.utils.setAppLocale
 import java.util.Locale
 
@@ -62,7 +64,7 @@ fun ContentSettings(navController: NavController) {
     val (appLanguage, onAppLanguageChange) = rememberPreference(key = AppLanguageKey, defaultValue = SYSTEM_DEFAULT)
 
     val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = "system")
-    val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = "system")
+    val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = DEFAULT_YOUTUBE_CONTENT_REGION)
     val (playlistSuggestionSource, onPlaylistSuggestionSourceChange) =
         rememberEnumPreference(
             key = PlaylistSuggestionSourceKey,
@@ -111,25 +113,10 @@ fun ContentSettings(navController: NavController) {
             }
 
             item {
-                ListPreference(
-                    title = { Text(stringResource(R.string.content_country)) },
-                    icon = { Icon(painterResource(R.drawable.location_on), null) },
+                YouTubeRegionPreference(
                     selectedValue = contentCountry,
-                    values = listOf(SYSTEM_DEFAULT) + CountryCodeToName.keys.toList(),
-                    valueText = {
-                        CountryCodeToName.getOrElse(it) { stringResource(R.string.system_default) }
-                    },
                     onValueSelected = { newValue ->
-                        val locale = Locale.getDefault()
-
-                        YouTube.locale =
-                            YouTube.locale.copy(
-                                gl =
-                                    newValue.takeIf { it != SYSTEM_DEFAULT }
-                                        ?: locale.country.takeIf { it in CountryCodeToName }
-                                        ?: "US",
-                            )
-
+                        YouTube.locale = YouTube.locale.copy(gl = youTubeContentRegionCode(newValue))
                         onContentCountryChange(newValue)
                     },
                 )

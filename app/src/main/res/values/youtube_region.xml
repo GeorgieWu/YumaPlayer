@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_music_region">YouTube Music region</string>
+    <string name="youtube_music_region_auto">Automatic (chosen by YouTube)</string>
+    <string name="youtube_music_region_description">Used for sign-in verification, recommendations and charts.</string>
+</resources>

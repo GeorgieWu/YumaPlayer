@@ -10,6 +10,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class YouTubeLocale(
-    val gl: String, // geolocation
+    val gl: String?, // null lets YouTube choose the geolocation
     val hl: String, // host language
 )

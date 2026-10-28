@@ -24,7 +24,7 @@ data class Context(
         val deviceMake: String? = null,
         val deviceModel: String? = null,
         val androidSdkVersion: String? = null,
-        val gl: String,
+        val gl: String?,
         val hl: String,
         val visitorData: String?,
     )

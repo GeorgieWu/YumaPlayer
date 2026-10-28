@@ -17,6 +17,8 @@ import moe.rukamori.archivetune.constants.AccountChannelHandleKey
 import moe.rukamori.archivetune.constants.AccountEmailKey
 import moe.rukamori.archivetune.constants.AccountNameKey
 import moe.rukamori.archivetune.constants.DataSyncIdKey
+import moe.rukamori.archivetune.constants.ContentCountryKey
+import moe.rukamori.archivetune.constants.ContentLanguageKey
 import moe.rukamori.archivetune.constants.InnerTubeCookieKey
 import moe.rukamori.archivetune.constants.SavedAccountsKey
 import moe.rukamori.archivetune.constants.SelectedYtmPlaylistsKey
@@ -31,6 +33,7 @@ import moe.rukamori.archivetune.utils.dataStore
 import moe.rukamori.archivetune.utils.decodeSavedAccounts
 import moe.rukamori.archivetune.utils.encodeSavedAccounts
 import moe.rukamori.archivetune.utils.putLegacyPoToken
+import moe.rukamori.archivetune.utils.resolveYouTubeContentLocale
 import moe.rukamori.archivetune.utils.toPlaybackAuthState
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,6 +62,7 @@ class YouTubeLoginRepository
                 runCatchingPreservingCancellation {
                     val normalizedCookie = cookie.trim()
                     check(hasYouTubeLoginCookie(normalizedCookie)) { "YouTube login cookie is missing" }
+                    applyContentRegion()
 
                     val initialAuthState =
                         PlaybackAuthState(
@@ -91,6 +95,7 @@ class YouTubeLoginRepository
             withContext(Dispatchers.IO) {
                 runCatchingPreservingCancellation {
                     check(hasYouTubeLoginCookie(account.innerTubeCookie)) { "Saved account login cookie is missing" }
+                    applyContentRegion()
 
                     val initialAuthState =
                         PlaybackAuthState(
@@ -179,6 +184,11 @@ class YouTubeLoginRepository
                 preferences[AccountEmailKey] = accountInfo.email.orEmpty()
                 preferences[AccountChannelHandleKey] = accountInfo.channelHandle.orEmpty()
             }
+        }
+
+        private suspend fun applyContentRegion() {
+            val preferences = context.dataStore.data.first()
+            YouTube.locale = resolveYouTubeContentLocale(preferences[ContentCountryKey], preferences[ContentLanguageKey])
         }
 
         private suspend fun resolveRequiredDataSyncId(candidate: String?): String {

@@ -30,6 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.ContentCountryKey
+import moe.rukamori.archivetune.ui.screens.settings.YouTubeRegionPreference
+import moe.rukamori.archivetune.utils.DEFAULT_YOUTUBE_CONTENT_REGION
+import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.ui.theme.yumaClickable
 
 @Composable
@@ -38,6 +42,9 @@ internal fun LoginChoiceDialog(
     onBrowserLogin: () -> Unit,
     onAdvancedLogin: () -> Unit,
 ) {
+    val (contentCountry, onContentCountryChange) =
+        rememberPreference(ContentCountryKey, DEFAULT_YOUTUBE_CONTENT_REGION)
+
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -54,6 +61,11 @@ internal fun LoginChoiceDialog(
                     text = stringResource(R.string.login),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
+                )
+
+                YouTubeRegionPreference(
+                    selectedValue = contentCountry,
+                    onValueSelected = onContentCountryChange,
                 )
 
                 Surface(
