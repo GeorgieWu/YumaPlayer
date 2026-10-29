@@ -60,6 +60,8 @@ import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -181,15 +183,19 @@ fun LocalPlaylistScreen(
         onResetDragInfo = { dragInfo = null },
     )
 
+    val artworkModel = remember(playlist) { playlist?.thumbnails?.firstOrNull() }
+    val artworkBackground = rememberArtworkBackground(artworkModel)
+
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = actions.onRefresh,
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -297,13 +303,14 @@ fun LocalPlaylistScreen(
                     .padding(bottom = 16.dp),
         )
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
-                    .align(Alignment.BottomCenter),
-        )
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier =
+                    Modifier
+                        .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
+                        .align(Alignment.BottomCenter),
+            )
+        }
     }
 
     LocalPlaylistDialogsHost(

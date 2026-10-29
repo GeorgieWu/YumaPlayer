@@ -42,8 +42,8 @@ fun HeaderHazeBackdrop(
     blurRadius: Float? = null,
     height: Dp? = null,
     alwaysShowFallback: Boolean = false,
+    surfaceColor: Color = MaterialTheme.colorScheme.surface,
 ) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
     val (disableBlur) = rememberPreference(DisableBlurKey, false)
     val (blurNavBar) = rememberPreference(BlurNavBarKey, true)
     val animationsDisabled = LocalAnimationsDisabled.current

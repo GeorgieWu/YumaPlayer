@@ -45,6 +45,8 @@ import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeAlbumMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
@@ -120,122 +122,125 @@ fun AlbumScreen(
     val contentPadding = contentInsets.asPaddingValues()
 
     val showTopBarTitle by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 } }
+    val artworkBackground = rememberArtworkBackground(currentAlbumWithSongs?.album?.thumbnailUrl)
 
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
-            state = lazyListState,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
-        ) {
-            if (currentAlbumWithSongs != null && currentAlbumWithSongs.songs.isNotEmpty()) {
-                albumHeaderSection(
-                    albumWithSongs = currentAlbumWithSongs,
-                    songCount = selectionState.wrappedSongs.size,
-                    downloadState = downloadUiState.downloadState,
-                    systemBarsTopPadding = systemBarsTopPadding,
-                    actions = actions,
-                    headerProgress = headerProgress,
-                    disableBlur = disableBlur,
-                    onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
-                )
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
+                state = lazyListState,
+                contentPadding = contentPadding,
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+            ) {
+                if (currentAlbumWithSongs != null && currentAlbumWithSongs.songs.isNotEmpty()) {
+                    albumHeaderSection(
+                        albumWithSongs = currentAlbumWithSongs,
+                        songCount = selectionState.wrappedSongs.size,
+                        downloadState = downloadUiState.downloadState,
+                        systemBarsTopPadding = systemBarsTopPadding,
+                        actions = actions,
+                        headerProgress = headerProgress,
+                        disableBlur = disableBlur,
+                        onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
+                    )
 
-                albumSongsSection(
-                    wrappedSongs = selectionState.wrappedSongs,
-                    selection = selectionState.selection,
-                    onSelectionChange = { selectionState.selection = it },
-                    activeMediaId = mediaMetadata?.id,
-                    isPlaying = isPlaying,
-                    onSongClick = actions.onSongClick,
-                    onTogglePlayPause = { playerConnection.player.togglePlayPause() },
-                    onSongMenu = { song ->
-                        menuState.show {
-                            SongMenu(
-                                originalSong = song,
-                                navController = navController,
-                                onDismiss = menuState::dismiss,
-                            )
-                        }
-                    },
-                )
+                    albumSongsSection(
+                        wrappedSongs = selectionState.wrappedSongs,
+                        selection = selectionState.selection,
+                        onSelectionChange = { selectionState.selection = it },
+                        activeMediaId = mediaMetadata?.id,
+                        isPlaying = isPlaying,
+                        onSongClick = actions.onSongClick,
+                        onTogglePlayPause = { playerConnection.player.togglePlayPause() },
+                        onSongMenu = { song ->
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = song,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    )
 
-                albumOtherVersionsSection(
-                    otherVersions = screenUiState.otherVersions,
-                    activeAlbumId = mediaMetadata?.album?.id,
-                    isPlaying = isPlaying,
-                    coroutineScope = scope,
-                    onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
-                    onAlbumLongClick = { albumItem ->
-                        menuState.show {
-                            YouTubeAlbumMenu(
-                                albumItem = albumItem,
-                                navController = navController,
-                                onDismiss = menuState::dismiss,
-                            )
-                        }
-                    },
-                )
-            } else {
-                albumStatePlaceholders(
-                    uiState = screenUiState.uiState,
-                    topPadding = 16.dp,
-                    onRetry = { viewModel.retry() },
-                )
-            }
-        }
-
-        HeaderHazeBackdrop(
-            progress = headerProgress,
-            hasCollapsibleHeader = hasArtworkBackdrop,
-            hazeState = hazeState,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-
-        TopAppBar(
-            modifier = Modifier.align(Alignment.TopCenter),
-            colors =
-                TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
-                ),
-            scrollBehavior = scrollBehavior,
-            title = {
-                AlbumTopBarTitle(
-                    selection = selectionState.selection,
-                    selectedCount = selectionState.selectedCount,
-                    title = screenUiState.albumWithSongs?.album?.title.orEmpty(),
-                    showTitle = showTopBarTitle,
-                )
-            },
-            navigationIcon = {
-                AlbumTopBarNavigationIcon(
-                    selectionState = selectionState,
-                    navController = navController,
-                )
-            },
-            actions = {
-                if (selectionState.selection) {
-                    AlbumSelectionTopBarActions(
-                        selectionState = selectionState,
-                        menuState = menuState,
+                    albumOtherVersionsSection(
+                        otherVersions = screenUiState.otherVersions,
+                        activeAlbumId = mediaMetadata?.album?.id,
+                        isPlaying = isPlaying,
+                        coroutineScope = scope,
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onAlbumLongClick = { albumItem ->
+                            menuState.show {
+                                YouTubeAlbumMenu(
+                                    albumItem = albumItem,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        },
+                    )
+                } else {
+                    albumStatePlaceholders(
+                        uiState = screenUiState.uiState,
+                        topPadding = 16.dp,
+                        onRetry = { viewModel.retry() },
                     )
                 }
-            },
-        )
+            }
 
-        AlbumDownloadProgressToolbar(
-            downloadUiState = downloadUiState,
-            albumWithSongs = screenUiState.albumWithSongs,
-            context = context,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(LocalPlayerAwareWindowInsets.current.asPaddingValues())
-                    .padding(bottom = 16.dp),
-        )
+            HeaderHazeBackdrop(
+                progress = headerProgress,
+                hasCollapsibleHeader = hasArtworkBackdrop,
+                hazeState = hazeState,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+
+            TopAppBar(
+                modifier = Modifier.align(Alignment.TopCenter),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                    ),
+                scrollBehavior = scrollBehavior,
+                title = {
+                    AlbumTopBarTitle(
+                        selection = selectionState.selection,
+                        selectedCount = selectionState.selectedCount,
+                        title = screenUiState.albumWithSongs?.album?.title.orEmpty(),
+                        showTitle = showTopBarTitle,
+                    )
+                },
+                navigationIcon = {
+                    AlbumTopBarNavigationIcon(
+                        selectionState = selectionState,
+                        navController = navController,
+                    )
+                },
+                actions = {
+                    if (selectionState.selection) {
+                        AlbumSelectionTopBarActions(
+                            selectionState = selectionState,
+                            menuState = menuState,
+                        )
+                    }
+                },
+            )
+
+            AlbumDownloadProgressToolbar(
+                downloadUiState = downloadUiState,
+                albumWithSongs = screenUiState.albumWithSongs,
+                context = context,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(LocalPlayerAwareWindowInsets.current.asPaddingValues())
+                        .padding(bottom = 16.dp),
+            )
+        }
     }
 }

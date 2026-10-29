@@ -82,6 +82,8 @@ import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.spotify.SpotifyPlaylistHeader
@@ -211,15 +213,18 @@ fun SpotifyPlaylistScreen(
         }
     }
 
+    val artworkBackground = rememberArtworkBackground(thumbnailUrl)
+
     ExpressivePullToRefreshBox(
         isRefreshing = state.isLoading && tracks.isNotEmpty(),
         onRefresh = viewModel::reload,
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -401,6 +406,7 @@ fun SpotifyPlaylistScreen(
             },
             scrollBehavior = scrollBehavior,
         )
+        }
     }
 }
 

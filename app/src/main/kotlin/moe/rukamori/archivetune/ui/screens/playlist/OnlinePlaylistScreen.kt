@@ -50,6 +50,8 @@ import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -159,12 +161,15 @@ fun OnlinePlaylistScreen(
     }
     val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
+    val artworkBackground = rememberArtworkBackground(uiState.playlist?.thumbnail)
+
     ExpressivePullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = viewModel::refresh,
-        modifier = Modifier.fillMaxSize().background(Color.Transparent),
+        modifier = Modifier.fillMaxSize().background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
             contentPadding = contentPadding,
             modifier = Modifier
@@ -247,12 +252,13 @@ fun OnlinePlaylistScreen(
                     .padding(bottom = 16.dp),
         )
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
-                    .align(Alignment.BottomCenter),
-        )
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier =
+                    Modifier
+                        .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
+                        .align(Alignment.BottomCenter),
+            )
+        }
     }
 }

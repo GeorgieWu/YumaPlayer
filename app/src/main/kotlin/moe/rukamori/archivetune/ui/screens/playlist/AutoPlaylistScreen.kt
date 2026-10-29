@@ -51,6 +51,8 @@ import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.playback.queues.ListQueue
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
@@ -182,13 +184,16 @@ fun AutoPlaylistScreen(
     }
     val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
+    val artworkBackground = rememberArtworkBackground(firstSongThumbnail)
+
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -317,5 +322,6 @@ fun AutoPlaylistScreen(
             focusRequester = searchState.focusRequester,
             scrollBehavior = scrollBehavior,
         )
+        }
     }
 }

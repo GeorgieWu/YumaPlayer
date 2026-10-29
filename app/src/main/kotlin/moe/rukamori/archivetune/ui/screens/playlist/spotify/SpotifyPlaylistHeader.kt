@@ -63,7 +63,7 @@ internal fun SpotifyPlaylistHeader(
             .fillMaxWidth()
             .then(
                 if (hasArtwork) {
-                    Modifier.heightIn(min = ImmersiveArtworkTokens.BackdropHeight + 96.dp)
+                    Modifier.heightIn(min = ImmersiveArtworkTokens.HeaderMinHeight)
                 } else {
                     Modifier
                 },

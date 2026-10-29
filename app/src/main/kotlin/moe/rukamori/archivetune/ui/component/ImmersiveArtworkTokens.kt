@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 
 internal object ImmersiveArtworkTokens {
     val BackdropHeight: Dp = 520.dp
+    val HeaderExtraHeight: Dp = 96.dp
+    val HeaderMinHeight: Dp = BackdropHeight + HeaderExtraHeight
 
     const val ScrollCoverFollow = 0.20f
     const val ScrollCoverZoom = 0.22f

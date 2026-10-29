@@ -91,7 +91,7 @@ internal fun AutoPlaylistHeader(
             .fillMaxWidth()
             .then(
                 if (hasArtwork) {
-                    Modifier.heightIn(min = ImmersiveArtworkTokens.BackdropHeight)
+                    Modifier.heightIn(min = ImmersiveArtworkTokens.HeaderMinHeight)
                 } else {
                     Modifier
                 },

@@ -107,9 +107,11 @@ import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
 import moe.rukamori.archivetune.ui.component.SongListItem
 import moe.rukamori.archivetune.ui.component.SortHeader
 import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
@@ -249,13 +251,16 @@ fun CachePlaylistScreen(
     }
     val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
+    val artworkBackground = rememberArtworkBackground(firstSongThumbnail)
+
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .background(artworkBackground.backgroundColor),
     ) {
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
@@ -572,6 +577,7 @@ fun CachePlaylistScreen(
                 }
             },
         )
+        }
     }
 }
 
@@ -596,7 +602,7 @@ private fun CachePlaylistHeroSection(
             .fillMaxWidth()
             .then(
                 if (hasArtwork) {
-                    Modifier.heightIn(min = ImmersiveArtworkTokens.BackdropHeight)
+                    Modifier.heightIn(min = ImmersiveArtworkTokens.HeaderMinHeight)
                 } else {
                     Modifier
                 },
