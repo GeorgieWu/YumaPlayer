@@ -52,6 +52,7 @@ import moe.rukamori.archivetune.ui.scaffold.ScaffoldNavigationRail
 import moe.rukamori.archivetune.ui.scaffold.ScaffoldSearchBarHost
 import moe.rukamori.archivetune.ui.scaffold.ScaffoldTopAppBar
 import moe.rukamori.archivetune.ui.scaffold.rememberScaffoldAppState
+import moe.rukamori.archivetune.ui.screens.isArtworkDetailRoute
 import moe.rukamori.archivetune.ui.utils.LocalGlobalVisibility
 import moe.rukamori.archivetune.ui.utils.LocalPlayerIsExpanded
 import moe.rukamori.archivetune.utils.SyncUtils
@@ -97,7 +98,10 @@ fun ScaffoldShell(
             LocalGlobalVisibility provides isHomeScreenVisible,
             LocalPlayerIsExpanded provides appState.playerBottomSheetState.isExpanded,
         ) {
-            ScreenBackground(isVisible = LocalGlobalVisibility.current, modifier = Modifier.fillMaxSize())
+            ScreenBackground(
+                isVisible = LocalGlobalVisibility.current && !isArtworkDetailRoute(appState.currentRoute),
+                modifier = Modifier.fillMaxSize(),
+            )
             if (splashEnabled) {
                 SplashOverlay(isDark = useDarkTheme, onBurstStart = onBurstStart, onDismiss = onSplashDismiss)
             }

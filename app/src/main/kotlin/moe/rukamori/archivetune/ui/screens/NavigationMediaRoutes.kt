@@ -26,6 +26,22 @@ import moe.rukamori.archivetune.ui.screens.playlist.OnlinePlaylistScreen
 import moe.rukamori.archivetune.ui.screens.playlist.SpotifyPlaylistScreen
 import moe.rukamori.archivetune.ui.screens.playlist.TopPlaylistScreen
 
+private val ArtworkDetailRoutePatterns = setOf(
+    "album/{albumId}",
+    "spotify_album/{albumId}",
+    "local_playlist/{playlistId}",
+    "online_playlist/{playlistId}",
+    "spotify_playlist/{playlistId}",
+    "auto_playlist/{playlist}",
+    "cache_playlist/{playlist}",
+    "top_playlist/{top}",
+)
+
+internal fun isArtworkDetailRoute(route: String?): Boolean {
+    if (route == null) return false
+    return route.substringBefore('?') in ArtworkDetailRoutePatterns
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun NavGraphBuilder.mediaNavigationRoutes(
     navController: NavHostController,

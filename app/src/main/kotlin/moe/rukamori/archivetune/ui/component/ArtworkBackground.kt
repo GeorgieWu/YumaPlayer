@@ -33,8 +33,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalAnimationsDisabled
-import moe.rukamori.archivetune.constants.HomeBackgroundStyle
-import moe.rukamori.archivetune.home.effects.LocalHomeBackgroundStyle
 import moe.rukamori.archivetune.ui.theme.extractSeedColor
 import moe.rukamori.archivetune.utils.reportException
 
@@ -44,7 +42,7 @@ val LocalArtworkSurfaceColor = compositionLocalOf<State<Color>?> { null }
 data class ArtworkBackgroundState(
     val targetSurface: Color,
     val animatedColor: State<Color>,
-    val isNoneMode: Boolean,
+    val isActive: Boolean = true,
 ) {
     val backgroundColor: Color get() = animatedColor.value
     val surfaceColor: Color get() = targetSurface
@@ -67,9 +65,10 @@ private fun deriveMutedBackgroundColor(seedColor: Color, isDarkTheme: Boolean): 
 }
 
 @Composable
-fun rememberArtworkBackground(artworkModel: Any?): ArtworkBackgroundState {
-    val backgroundStyle = LocalHomeBackgroundStyle.current.style
-    val isNoneMode = backgroundStyle == HomeBackgroundStyle.OFF
+fun rememberArtworkBackground(
+    artworkModel: Any?,
+    enabled: Boolean = true,
+): ArtworkBackgroundState {
     val defaultSurface = MaterialTheme.colorScheme.surface
     val isDarkTheme = defaultSurface.luminance() < 0.5f
     val animationsDisabled = LocalAnimationsDisabled.current
@@ -83,20 +82,20 @@ fun rememberArtworkBackground(artworkModel: Any?): ArtworkBackgroundState {
         }
     }
 
-    val initialColor = remember(cacheKey, isNoneMode, defaultSurface) {
-        if (isNoneMode && cacheKey != null) {
+    val initialColor = remember(cacheKey, enabled, defaultSurface) {
+        if (enabled && cacheKey != null) {
             artworkSurfaceCache.get(cacheKey) ?: defaultSurface
         } else {
             defaultSurface
         }
     }
 
-    var targetSurface by remember(artworkModel, isNoneMode, isDarkTheme, defaultSurface) {
+    var targetSurface by remember(artworkModel, enabled, isDarkTheme, defaultSurface) {
         mutableStateOf(initialColor)
     }
 
-    LaunchedEffect(artworkModel, isNoneMode, isDarkTheme, defaultSurface, context) {
-        if (!isNoneMode || artworkModel == null) {
+    LaunchedEffect(artworkModel, enabled, isDarkTheme, defaultSurface, context) {
+        if (!enabled || artworkModel == null) {
             return@LaunchedEffect
         }
         val cached = cacheKey?.let(artworkSurfaceCache::get)
@@ -141,22 +140,22 @@ fun rememberArtworkBackground(artworkModel: Any?): ArtworkBackgroundState {
     }
 
     val animatedColor = animateColorAsState(
-        targetValue = if (isNoneMode) targetSurface else Color.Transparent,
+        targetValue = if (enabled) targetSurface else Color.Transparent,
         animationSpec = if (animationsDisabled) snap() else tween(durationMillis = 600, easing = FastOutSlowInEasing),
         label = "artworkBackground",
     )
 
-    return remember(targetSurface, animatedColor, isNoneMode) {
+    return remember(targetSurface, animatedColor, enabled) {
         ArtworkBackgroundState(
             targetSurface = targetSurface,
             animatedColor = animatedColor,
-            isNoneMode = isNoneMode,
+            isActive = enabled,
         )
     }
 }
 
 fun Modifier.artworkBackground(artworkBackground: ArtworkBackgroundState): Modifier =
-    if (artworkBackground.isNoneMode) {
+    if (artworkBackground.isActive) {
         this.drawBehind {
             drawRect(artworkBackground.animatedColor.value)
         }
@@ -169,7 +168,7 @@ fun ProvideArtworkSurface(
     artworkBackground: ArtworkBackgroundState,
     content: @Composable () -> Unit,
 ) {
-    if (artworkBackground.isNoneMode && artworkBackground.targetSurface != Color.Unspecified) {
+    if (artworkBackground.isActive && artworkBackground.targetSurface != Color.Unspecified) {
         CompositionLocalProvider(
             LocalArtworkSurfaceColor provides artworkBackground.animatedColor,
         ) {
