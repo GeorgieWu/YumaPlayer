@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,7 @@ import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.playback.PlayerConnection
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.MenuState
+import moe.rukamori.archivetune.ui.component.carousel.LocalHeroScrollProgress
 import moe.rukamori.archivetune.ui.screens.HomeSectionHeader
 import moe.rukamori.archivetune.ui.screens.QuickPicksSection
 import moe.rukamori.archivetune.ui.screens.SpeedDialSection
@@ -98,6 +100,19 @@ internal fun HomeContent(
                 val insetsPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
                 val isHeroMode = uiState.quickPicksDisplayMode == moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO
 
+                val heroScrollProgress: () -> Float = remember(lazyListState) {
+                    {
+                        val firstIndex = lazyListState.firstVisibleItemIndex
+                        if (firstIndex > 0) {
+                            1f
+                        } else {
+                            val itemInfo = lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()
+                            val totalHeight = itemInfo?.size?.toFloat() ?: 1f
+                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / totalHeight).coerceIn(0f, 1f)
+                        }
+                    }
+                }
+
                 LazyColumn(
                     state = lazyListState,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -124,16 +139,18 @@ internal fun HomeContent(
                             key = "home_quick_picks",
                             contentType = "quick_picks",
                         ) {
-                            QuickPicksSection(
-                                quickPicks = uiState.quickPicks,
-                                mediaMetadata = mediaMetadata,
-                                isPlaying = isPlaying,
-                                displayMode = uiState.quickPicksDisplayMode,
-                                navController = navController,
-                                playerConnection = playerConnection,
-                                menuState = menuState,
-                                modifier = Modifier.animateItem(),
-                            )
+                            CompositionLocalProvider(LocalHeroScrollProgress provides heroScrollProgress) {
+                                QuickPicksSection(
+                                    quickPicks = uiState.quickPicks,
+                                    mediaMetadata = mediaMetadata,
+                                    isPlaying = isPlaying,
+                                    displayMode = uiState.quickPicksDisplayMode,
+                                    navController = navController,
+                                    playerConnection = playerConnection,
+                                    menuState = menuState,
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
                         }
                     }
 

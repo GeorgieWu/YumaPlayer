@@ -7,6 +7,7 @@
 package moe.rukamori.archivetune.ui.component.carousel
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -71,9 +72,25 @@ internal object HeroCarouselTokens {
     val ArtOverlayButtonSurface = Color(0xE0FFFFFF)
     val ArtOverlayButtonContent = Color(0xFF1E1E1E)
     val ArtOverlayButtonSecondarySurface = Color(0x47FFFFFF)
+    val ArtOverlayScrim = Color(0xFF000000)
 
     val GachaPointerColor = Color(0xFFF0908D)
     val GachaPipColor = Color(0xFF3C3C3C)
     val GachaDefaultLight = Color(0xFFDEA0AC)
     val GachaDefaultDeep = Color(0xFF7C82B4)
+
+    const val ScrollCoverZoom = 0.22f
+    const val ScrollCoverSoftBy = 0.55f
+    const val ScrollCoverFadeFrom = 0.35f
+    const val ScrollCoverFadeTo = 0.90f
+    const val ScrollCoverDim = 0.22f
+    const val ScrollCoverSoftRadius = 30f
+    const val ScrollCoverFollow = 0.20f
+}
+
+internal val LocalHeroScrollProgress = compositionLocalOf<() -> Float> { { 0f } }
+
+internal fun smoothstep(from: Float, to: Float, x: Float): Float {
+    val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
 }

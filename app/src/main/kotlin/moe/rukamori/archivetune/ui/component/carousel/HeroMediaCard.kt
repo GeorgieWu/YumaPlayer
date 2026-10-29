@@ -36,7 +36,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -72,6 +75,8 @@ internal fun HeroMediaCard(
             .build()
     }
     val mediaLayer = rememberGraphicsLayer()
+    val scrollProgress = LocalHeroScrollProgress.current
+    val animationsDisabled = LocalAnimationsDisabled.current
 
     HeroPageWipe(
         pageOffset = pageOffset,
@@ -86,6 +91,47 @@ internal fun HeroMediaCard(
             modifier = Modifier
                 .fillMaxSize()
                 .heroPageMediaDrift(pageOffset)
+                .graphicsLayer {
+                    val rawProgress = scrollProgress()
+                    val p = if (animationsDisabled) 0f else rawProgress
+                    if (p > 0f) {
+                        translationY = p * size.height * HeroCarouselTokens.ScrollCoverFollow
+                        val zoom = 1f + p * HeroCarouselTokens.ScrollCoverZoom
+                        scaleX = zoom
+                        scaleY = zoom
+                        transformOrigin = TransformOrigin(0.5f, 0.35f)
+                        alpha = 1f - smoothstep(
+                            HeroCarouselTokens.ScrollCoverFadeFrom,
+                            HeroCarouselTokens.ScrollCoverFadeTo,
+                            p,
+                        )
+                        if (edgeBlur) {
+                            val soft = smoothstep(0f, HeroCarouselTokens.ScrollCoverSoftBy, p)
+                            val r = soft * HeroCarouselTokens.ScrollCoverSoftRadius
+                            renderEffect = if (r > 0.5f) {
+                                HeroBlurEffectCache.get(r, Shader.TileMode.CLAMP)
+                            } else {
+                                null
+                            }
+                        } else {
+                            renderEffect = null
+                        }
+                    } else {
+                        translationY = 0f
+                        scaleX = 1f
+                        scaleY = 1f
+                        alpha = 1f
+                        renderEffect = null
+                    }
+                }
+                .drawWithContent {
+                    drawContent()
+                    val rawProgress = scrollProgress()
+                    val p = if (animationsDisabled) 0f else rawProgress
+                    if (p > 0f) {
+                        drawRect(HeroCarouselTokens.ArtOverlayScrim.copy(alpha = HeroCarouselTokens.ScrollCoverDim * p))
+                    }
+                },
         ) {
             Box(
                 modifier = Modifier

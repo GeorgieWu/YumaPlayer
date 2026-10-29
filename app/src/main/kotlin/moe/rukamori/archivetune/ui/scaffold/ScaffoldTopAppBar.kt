@@ -1,5 +1,6 @@
 package moe.rukamori.archivetune.ui.scaffold
 
+import android.os.Build
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -24,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -43,13 +46,22 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazePerformanceMode
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.HazeColorEffect
+import dev.chrisbanes.haze.blur.hazeBlur
 import kotlinx.coroutines.delay
+import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppBarHeight
+import moe.rukamori.archivetune.constants.DisableBlurKey
+import moe.rukamori.archivetune.ui.component.carousel.LocalHeroScrollProgress
 import moe.rukamori.archivetune.ui.screens.Screens
-import dev.chrisbanes.haze.HazeState
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.state.UpdateState
+import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.NewsViewModel
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -78,13 +90,25 @@ fun ScaffoldTopAppBar(
     val hasUnreadNews by newsViewModel.hasUnreadNews.collectAsStateWithLifecycle()
     val isLibraryRoute = navBackStackEntry?.destination?.route == Screens.Library.route
     val currentRoute = navBackStackEntry?.destination?.route
+    val isHomeRoute = currentRoute == Screens.Home.route
     val shouldUseFloatingTopBar = remember(currentRoute) {
         currentRoute == Screens.Home.route || currentRoute == Screens.Search.route || currentRoute == Screens.Library.route
     }
     val surfaceColor = MaterialTheme.colorScheme.surface
+    val (disableBlur) = rememberPreference(DisableBlurKey, false)
+    val animationsDisabled = LocalAnimationsDisabled.current
+    val heroScrollProgress = LocalHeroScrollProgress.current
+
+    val isHomeTopBlurActive = isHomeRoute &&
+            blurNavBar &&
+            !disableBlur &&
+            !animationsDisabled &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            hazeState != null
+
     val currentScrollBehavior = scrollController.currentScrollBehavior(currentRoute)
 
-    var headerHeightPx by remember { mutableStateOf(0) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
     LaunchedEffect(currentScrollBehavior, headerHeightPx) {
         if (headerHeightPx > 0 && !isLibraryRoute) {
             val limit = -headerHeightPx.toFloat()
@@ -104,6 +128,30 @@ fun ScaffoldTopAppBar(
         if (shouldUseFloatingTopBar) {
             val appBarHeightPx = with(LocalDensity.current) { AppBarHeight.toPx() }
             val statusBarTop = with(LocalDensity.current) { WindowInsets.systemBars.getTop(this).toDp() }
+            val hazeStyle = if (isHomeTopBlurActive) {
+                remember(surfaceColor, blurRadius, pureBlack) {
+                    val fixedTintAlpha = if (pureBlack) SettingsDimensions.HazePureBlackTintAlpha else SettingsDimensions.HazeDefaultTintAlpha
+                    val tintEffect = HazeColorEffect.tint(surfaceColor.copy(alpha = fixedTintAlpha))
+                    HazeBlurStyle {
+                        blurEnabled(true)
+                        backgroundColor(if (pureBlack) Color.Black else surfaceColor)
+                        colorEffects(listOf(tintEffect))
+                        fallbackColorEffect(tintEffect)
+                        blurRadius(blurRadius.dp)
+                        noiseFactor(SettingsDimensions.HazeNoiseFactor)
+                        mask(
+                            Brush.verticalGradient(
+                                0.0f to Color.Black,
+                                0.65f to Color.Black.copy(alpha = 0.8f),
+                                1.0f to Color.Transparent,
+                            ),
+                        )
+                    }
+                }
+            } else {
+                null
+            }
+
             Box(
                 modifier = Modifier
                     .offset {
@@ -114,10 +162,31 @@ fun ScaffoldTopAppBar(
                     }
                     .fillMaxWidth()
                     .height(AppBarHeight + statusBarTop)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(surfaceColor.copy(alpha = 0.95f), surfaceColor.copy(alpha = 0.85f), surfaceColor.copy(alpha = 0.6f), Color.Transparent),
-                        ),
+                    .then(
+                        if (isHomeTopBlurActive && hazeStyle != null) {
+                            Modifier
+                                .graphicsLayer {
+                                    val p = heroScrollProgress()
+                                    alpha = if (p <= 0.85f) 0f else ((p - 0.85f) / 0.15f).coerceIn(0f, 1f)
+                                }
+                                .hazeBlur(
+                                    input = HazeInput.Sources(hazeState),
+                                    style = hazeStyle,
+                                    performanceMode = HazePerformanceMode.Fixed(SettingsDimensions.HazeQualityFraction),
+                                )
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            surfaceColor.copy(alpha = 0.75f),
+                                            surfaceColor.copy(alpha = 0.50f),
+                                            surfaceColor.copy(alpha = 0.20f),
+                                            Color.Transparent,
+                                        ),
+                                    ),
+                                )
+                        } else {
+                            Modifier.background(Color.Transparent)
+                        },
                     ),
             )
         }
