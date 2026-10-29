@@ -88,6 +88,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.palette.graphics.Palette
@@ -117,6 +119,8 @@ import moe.rukamori.archivetune.ui.component.SongListItem
 import moe.rukamori.archivetune.ui.component.SortHeader
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.ui.utils.ItemWrapper
@@ -292,14 +296,20 @@ fun CachePlaylistScreen(
         }
     }
 
+    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val hazeState = remember { HazeState() }
     val headerItems by remember {
         derivedStateOf {
             if (filteredSongs.isNotEmpty() && !isSearching) 2 else 0
         }
     }
-
-    // System bars padding
-    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val hasHeader = headerItems > 0
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasHeader,
+        collapseDistance = systemBarsTopPadding + 48.dp + 240.dp,
+        standardThreshold = 48.dp,
+    )
 
     Box(
         modifier =
@@ -433,6 +443,7 @@ fun CachePlaylistScreen(
         LazyColumn(
             state = lazyListState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (filteredSongs.isEmpty() && !isSearching) {
                 item {
@@ -801,6 +812,13 @@ fun CachePlaylistScreen(
                     ).align(Alignment.CenterEnd),
             scrollState = lazyListState,
             headerItems = headerItems,
+        )
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasHeader,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         TopAppBar(

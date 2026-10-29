@@ -51,12 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
-import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
-import dev.chrisbanes.haze.blur.hazeBlur
 import kotlinx.coroutines.delay
 import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
@@ -130,87 +125,30 @@ fun ScaffoldTopAppBar(
     ) {
         if (shouldUseFloatingTopBar) {
             val appBarHeightPx = with(LocalDensity.current) { AppBarHeight.toPx() }
-            val statusBarTop = with(LocalDensity.current) { WindowInsets.systemBars.getTop(this).toDp() }
-            val hazeStyle = if (isTopBlurActive) {
-                remember(surfaceColor, blurRadius, pureBlack) {
-                    val fixedTintAlpha = if (pureBlack) SettingsDimensions.HazePureBlackTintAlpha else SettingsDimensions.HazeDefaultTintAlpha
-                    val tintEffect = HazeColorEffect.tint(surfaceColor.copy(alpha = fixedTintAlpha))
-                    HazeBlurStyle {
-                        blurEnabled(true)
-                        backgroundColor(if (pureBlack) Color.Black else surfaceColor)
-                        colorEffects(listOf(tintEffect))
-                        fallbackColorEffect(tintEffect)
-                        blurRadius(blurRadius.dp)
-                        noiseFactor(SettingsDimensions.HazeNoiseFactor)
-                        mask(
-                            Brush.verticalGradient(
-                                0.0f to Color.Black,
-                                0.65f to Color.Black.copy(alpha = 0.8f),
-                                1.0f to Color.Transparent,
-                            ),
-                        )
-                    }
+            val headerScrollConnection = currentScrollBehavior.nestedScrollConnection as? HeaderScrollConnection
+            val progressProvider: () -> Float = {
+                if (headerScrollConnection != null && headerScrollConnection.isBound) {
+                    headerScrollConnection.scrollProgress()
+                } else {
+                    val offset = currentScrollBehavior.state.heightOffset
+                    val limit = currentScrollBehavior.state.heightOffsetLimit
+                    if (limit != 0f) (-offset / -limit).coerceIn(0f, 1f) else 0f
                 }
-            } else {
-                null
             }
 
-            Box(
-                modifier = Modifier
-                    .offset {
-                        if (isLibraryRoute) IntOffset(0, 0) else {
-                            val raw = currentScrollBehavior.state.heightOffset
-                            IntOffset(0, (raw.coerceAtLeast(-appBarHeightPx) - raw).roundToInt())
-                        }
+            HeaderHazeBackdrop(
+                progress = progressProvider,
+                hasCollapsibleHeader = headerScrollConnection?.hasCollapsibleHeader == true,
+                hazeState = if (isTopBlurActive) hazeState else null,
+                pureBlack = pureBlack,
+                blurRadius = blurRadius,
+                alwaysShowFallback = true,
+                modifier = Modifier.offset {
+                    if (isLibraryRoute) IntOffset(0, 0) else {
+                        val raw = currentScrollBehavior.state.heightOffset
+                        IntOffset(0, (raw.coerceAtLeast(-appBarHeightPx) - raw).roundToInt())
                     }
-                    .fillMaxWidth()
-                    .height(AppBarHeight + statusBarTop)
-                    .then(
-                        if (isTopBlurActive && hazeStyle != null) {
-                            val headerScrollConnection = currentScrollBehavior.nestedScrollConnection as? HeaderScrollConnection
-                            Modifier
-                                .graphicsLayer {
-                                    if (headerScrollConnection != null && headerScrollConnection.isBound) {
-                                        val p = headerScrollConnection.scrollProgress()
-                                        alpha = if (headerScrollConnection.hasCollapsibleHeader) {
-                                            smoothstep(0.70f, 0.95f, p)
-                                        } else {
-                                            p
-                                        }
-                                    } else {
-                                        val offset = currentScrollBehavior.state.heightOffset
-                                        val limit = currentScrollBehavior.state.heightOffsetLimit
-                                        alpha = if (limit != 0f) (-offset / -limit).coerceIn(0f, 1f) else 0f
-                                    }
-                                }
-                                .hazeBlur(
-                                    input = HazeInput.Sources(hazeState),
-                                    style = hazeStyle,
-                                    performanceMode = HazePerformanceMode.Fixed(SettingsDimensions.HazeQualityFraction),
-                                )
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(
-                                            surfaceColor.copy(alpha = 0.75f),
-                                            surfaceColor.copy(alpha = 0.50f),
-                                            surfaceColor.copy(alpha = 0.20f),
-                                            Color.Transparent,
-                                        ),
-                                    ),
-                                )
-                        } else {
-                            Modifier.background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        surfaceColor.copy(alpha = 0.95f),
-                                        surfaceColor.copy(alpha = 0.85f),
-                                        surfaceColor.copy(alpha = 0.6f),
-                                        Color.Transparent,
-                                    ),
-                                ),
-                            )
-                        },
-                    ),
+                },
             )
         }
 
@@ -304,9 +242,4 @@ private fun getGreetingText(): String {
         in 18..23 -> stringResource(R.string.good_evening)
         else -> stringResource(R.string.good_night)
     }
-}
-
-private fun smoothstep(from: Float, to: Float, x: Float): Float {
-    val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
-    return t * t * (3f - 2f * t)
 }

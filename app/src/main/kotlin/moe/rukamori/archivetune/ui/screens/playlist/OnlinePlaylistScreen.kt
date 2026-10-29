@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -42,11 +44,14 @@ import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalDownloadUtil
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
+import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.OnlinePlaylistViewModel
 
@@ -79,6 +84,7 @@ fun OnlinePlaylistScreen(
 
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -140,6 +146,13 @@ fun OnlinePlaylistScreen(
             if (!uiState.isLoading && current != null && !searchState.isSearching) 1 else 0
         }
     }
+    val hasHeader = headerItems > 0
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasHeader,
+        collapseDistance = systemBarsTopPadding + AppBarHeight + 248.dp,
+        standardThreshold = 48.dp,
+    )
 
     ExpressivePullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
@@ -157,6 +170,7 @@ fun OnlinePlaylistScreen(
         LazyColumn(
             state = lazyListState,
             contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (uiState.isLoading) {
                 onlinePlaylistShimmerItem(systemBarsTopPadding = systemBarsTopPadding)
@@ -204,6 +218,13 @@ fun OnlinePlaylistScreen(
                 Modifier
                     .padding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues())
                     .align(Alignment.CenterEnd),
+        )
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasHeader,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         OnlinePlaylistTopBar(

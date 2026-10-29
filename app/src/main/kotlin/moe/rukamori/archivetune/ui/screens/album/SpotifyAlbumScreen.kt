@@ -46,6 +46,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -63,6 +65,8 @@ import moe.rukamori.archivetune.spotify.models.SpotifyTrack
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.SpotifyTrackListItem
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.isResolvedAs
 import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.viewmodels.SpotifyAlbumUiState
@@ -80,11 +84,19 @@ fun SpotifyAlbumScreen(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
+    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val successState = uiState as? SpotifyAlbumUiState.Success
+    val hasHeader = successState != null
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasHeader,
+        collapseDistance = systemBarsTopPadding + AppBarHeight + 200.dp,
+        standardThreshold = 48.dp,
+    )
     var resolvingTrackId by remember { mutableStateOf<String?>(null) }
     var preloadJob by remember { mutableStateOf<Job?>(null) }
-    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val showTopBarTitle by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 } }
-    val successState = uiState as? SpotifyAlbumUiState.Success
 
     fun playTracks(tracks: List<SpotifyTrack>, startIndex: Int = 0, shuffled: Boolean = false) {
         val album = successState?.album ?: return
@@ -128,7 +140,7 @@ fun SpotifyAlbumScreen(
             LazyColumn(
                 state = lazyListState,
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
             ) {
                 when (val state = uiState) {
                     SpotifyAlbumUiState.Loading -> {
@@ -204,6 +216,13 @@ fun SpotifyAlbumScreen(
                 }
             }
         }
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasHeader,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
 
         TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),

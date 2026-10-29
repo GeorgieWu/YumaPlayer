@@ -22,12 +22,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastSumBy
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -44,6 +48,8 @@ import moe.rukamori.archivetune.playback.queues.ListQueue
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistGradientBackground
 import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistHeader
 import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistRemoveDownloadDialog
@@ -141,6 +147,8 @@ fun AutoPlaylistScreen(
         }
 
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
+    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
 
     val gradientColors = rememberAutoPlaylistGradientColors(songs)
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -156,8 +164,13 @@ fun AutoPlaylistScreen(
             if (songs.isNotEmpty() && !searchState.isSearching) 2 else 0
         }
     }
-
-    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val hasHeader = headerItems > 0
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasHeader,
+        collapseDistance = systemBarsTopPadding + 48.dp + 240.dp,
+        standardThreshold = 48.dp,
+    )
 
     Box(
         modifier =
@@ -175,6 +188,7 @@ fun AutoPlaylistScreen(
         LazyColumn(
             state = lazyListState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (!searchState.isSearching) {
                 item(
@@ -243,6 +257,13 @@ fun AutoPlaylistScreen(
         playlistScrollbar(
             scrollState = lazyListState,
             headerItems = headerItems,
+        )
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasHeader,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         AutoPlaylistSelectionTopBar(

@@ -62,6 +62,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -76,6 +78,7 @@ import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
 import moe.rukamori.archivetune.models.MediaMetadata
@@ -88,6 +91,8 @@ import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.spotify.SpotifyPlaylistHeader
 import moe.rukamori.archivetune.ui.screens.playlist.spotify.spotifyPlaylistTrackRows
 import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
@@ -114,6 +119,7 @@ fun SpotifyPlaylistScreen(
     val playlist = state.playlist
     val tracks = state.tracks
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
 
     val showTopBarTitle by remember {
@@ -121,6 +127,13 @@ fun SpotifyPlaylistScreen(
     }
 
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    val hasHeader = !isSearching && playlist != null
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasHeader,
+        collapseDistance = systemBarsTopPadding + AppBarHeight + 248.dp,
+        standardThreshold = 48.dp,
+    )
     var resolvingTrackId by remember { mutableStateOf<String?>(null) }
     var preloadJob by remember { mutableStateOf<Job?>(null) }
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
@@ -379,7 +392,7 @@ fun SpotifyPlaylistScreen(
         LazyColumn(
             state = lazyListState,
             contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (!isSearching) {
                 playlist?.let { currentPlaylist ->
@@ -469,6 +482,13 @@ fun SpotifyPlaylistScreen(
                     ).align(Alignment.CenterEnd),
             scrollState = lazyListState,
             headerItems = if (!isSearching && playlist != null) 1 else 0,
+        )
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasHeader,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         TopAppBar(

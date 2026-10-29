@@ -46,8 +46,11 @@ import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.rememberCollapseFraction
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeAlbumMenu
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.AlbumViewModel
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +84,7 @@ fun AlbumScreen(
     val gradientColors = rememberAlbumGradientColors(screenUiState.albumWithSongs?.album?.thumbnailUrl, context)
     val gradientAlpha by rememberAlbumGradientAlpha(lazyListState)
     val collapseFraction by rememberCollapseFraction(lazyListState)
+    val hazeState = remember { HazeState() }
 
     AlbumEffects(
         albumWithSongs = screenUiState.albumWithSongs,
@@ -122,6 +126,7 @@ fun AlbumScreen(
         LazyColumn(
             state = lazyListState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             val currentAlbumWithSongs = screenUiState.albumWithSongs
             if (currentAlbumWithSongs != null && currentAlbumWithSongs.songs.isNotEmpty()) {
@@ -178,6 +183,13 @@ fun AlbumScreen(
                 )
             }
         }
+
+        HeaderHazeBackdrop(
+            progress = { collapseFraction },
+            hasCollapsibleHeader = true,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
 
         TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),

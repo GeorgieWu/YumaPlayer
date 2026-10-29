@@ -66,6 +66,7 @@ import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.asScrollContract
 import moe.rukamori.archivetune.ui.component.rememberCollapseFraction
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.ArtistViewModel
 
@@ -220,6 +221,13 @@ fun ArtistScreen(
                 }
             }
         }
+
+        HeaderHazeBackdrop(
+            progress = { collapseFraction },
+            hasCollapsibleHeader = true,
+            hazeState = fabHazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
 
         TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),

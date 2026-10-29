@@ -1,6 +1,7 @@
 package moe.rukamori.archivetune.ui.scaffold
 
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -206,8 +207,7 @@ fun rememberScaffoldScrollController(
 }
 
 @Composable
-internal fun BindHeaderScroll(
-    connection: NestedScrollConnection?,
+internal fun rememberHeaderScrollProgress(
     lazyListState: LazyListState,
     hasCollapsibleHeader: Boolean,
     collapseDistance: Dp = 360.dp,
@@ -219,7 +219,7 @@ internal fun BindHeaderScroll(
         targetDp.toPx().coerceAtLeast(1f)
     }
 
-    val progressProvider: () -> Float = remember(lazyListState, targetThresholdPx) {
+    return remember(lazyListState, targetThresholdPx) {
         {
             if (lazyListState.firstVisibleItemIndex > 0) {
                 1f
@@ -228,7 +228,82 @@ internal fun BindHeaderScroll(
             }
         }
     }
+}
 
+@Composable
+internal fun rememberHeaderScrollProgress(
+    lazyGridState: LazyGridState,
+    hasCollapsibleHeader: Boolean,
+    collapseDistance: Dp = 360.dp,
+    standardThreshold: Dp = 48.dp,
+): () -> Float {
+    val density = LocalDensity.current
+    val targetThresholdPx = with(density) {
+        val targetDp = if (hasCollapsibleHeader) collapseDistance else standardThreshold
+        targetDp.toPx().coerceAtLeast(1f)
+    }
+
+    return remember(lazyGridState, targetThresholdPx) {
+        {
+            if (lazyGridState.firstVisibleItemIndex > 0) {
+                1f
+            } else {
+                (lazyGridState.firstVisibleItemScrollOffset / targetThresholdPx).coerceIn(0f, 1f)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BindHeaderScroll(
+    connection: NestedScrollConnection?,
+    lazyListState: LazyListState,
+    hasCollapsibleHeader: Boolean,
+    collapseDistance: Dp = 360.dp,
+    standardThreshold: Dp = 48.dp,
+): () -> Float {
+    val progressProvider = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasCollapsibleHeader,
+        collapseDistance = collapseDistance,
+        standardThreshold = standardThreshold,
+    )
+
+    return BindHeaderScroll(
+        connection = connection,
+        hasCollapsibleHeader = hasCollapsibleHeader,
+        progressProvider = progressProvider,
+    )
+}
+
+@Composable
+internal fun BindHeaderScroll(
+    connection: NestedScrollConnection?,
+    lazyGridState: LazyGridState,
+    hasCollapsibleHeader: Boolean,
+    collapseDistance: Dp = 360.dp,
+    standardThreshold: Dp = 48.dp,
+): () -> Float {
+    val progressProvider = rememberHeaderScrollProgress(
+        lazyGridState = lazyGridState,
+        hasCollapsibleHeader = hasCollapsibleHeader,
+        collapseDistance = collapseDistance,
+        standardThreshold = standardThreshold,
+    )
+
+    return BindHeaderScroll(
+        connection = connection,
+        hasCollapsibleHeader = hasCollapsibleHeader,
+        progressProvider = progressProvider,
+    )
+}
+
+@Composable
+internal fun BindHeaderScroll(
+    connection: NestedScrollConnection?,
+    hasCollapsibleHeader: Boolean,
+    progressProvider: () -> Float,
+): () -> Float {
     val headerConnection = connection as? HeaderScrollConnection
     val registrationToken = remember { Any() }
 
