@@ -50,7 +50,6 @@ import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
-import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -135,14 +134,14 @@ fun OnlinePlaylistScreen(
             onLoadMore = viewModel::loadMoreSongs,
         )
 
-    val headerItems by remember {
-        derivedStateOf {
-            val current = uiState.playlist
-            if (!uiState.isLoading && current != null && !searchState.isSearching) 1 else 0
-        }
-    }
-    val hasHeader = headerItems > 0
-    val hasArtworkBackdrop = hasHeader && !uiState.playlist?.thumbnail.isNullOrBlank()
+    val hasHeader =
+        !uiState.isLoading &&
+                uiState.playlist != null &&
+                !searchState.isSearching
+
+    val headerItems = if (hasHeader) 1 else 0
+    val hasArtworkBackdrop =
+        hasHeader && !uiState.playlist.thumbnail.isNullOrBlank()
 
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
@@ -165,61 +164,50 @@ fun OnlinePlaylistScreen(
         onRefresh = viewModel::refresh,
         modifier = Modifier.fillMaxSize().background(Color.Transparent),
     ) {
-        Box(
+        LazyColumn(
+            state = lazyListState,
+            contentPadding = contentPadding,
             modifier = Modifier
                 .fillMaxSize()
                 .hazeSource(hazeState),
         ) {
-            if (hasArtworkBackdrop) {
-                YumaImmersiveArtworkHeader(
-                    thumbnailUrl = uiState.playlist?.thumbnail,
-                    progress = headerProgress,
-                    disableBlur = disableBlur,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
-            }
-
-            LazyColumn(
-                state = lazyListState,
-                contentPadding = contentPadding,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (uiState.isLoading) {
-                    onlinePlaylistShimmerItem()
-                } else if (uiState.playlist != null) {
-                    if (!searchState.isSearching) {
-                        onlinePlaylistHeaderItem(
-                            playlist = uiState.playlist,
-                            isBookmarked = uiState.isBookmarked,
-                            downloadState = downloadUiState.downloadState,
-                            systemBarsTopPadding = systemBarsTopPadding,
-                            actions = actions,
-                        )
-                    }
-
-                    if (uiState.songs.isEmpty() && !uiState.isLoading && uiState.error == null) {
-                        onlinePlaylistEmptyItem()
-                    }
-
-                    onlinePlaylistSongItems(
-                        wrappedSongs = searchState.wrappedSongs,
-                        viewCounts = uiState.viewCounts,
-                        activeMediaId = mediaMetadata?.id,
-                        isPlaying = isPlaying,
-                        selection = searchState.selection,
-                        hideExplicit = hideExplicit,
+            if (uiState.isLoading) {
+                onlinePlaylistShimmerItem()
+            } else if (uiState.playlist != null) {
+                if (!searchState.isSearching) {
+                    onlinePlaylistHeaderItem(
+                        playlist = uiState.playlist,
+                        isBookmarked = uiState.isBookmarked,
+                        downloadState = downloadUiState.downloadState,
+                        systemBarsTopPadding = systemBarsTopPadding,
                         actions = actions,
-                    )
-
-                    if (uiState.hasContinuation && uiState.songs.isNotEmpty() && uiState.isLoadingMore) {
-                        onlinePlaylistLoadingMoreItem()
-                    }
-                } else {
-                    onlinePlaylistErrorItem(
-                        error = uiState.error,
-                        onRetry = actions.onRetry,
+                        headerProgress = headerProgress,
+                        disableBlur = disableBlur,
                     )
                 }
+
+                if (uiState.songs.isEmpty() && uiState.error == null) {
+                    onlinePlaylistEmptyItem()
+                }
+
+                onlinePlaylistSongItems(
+                    wrappedSongs = searchState.wrappedSongs,
+                    viewCounts = uiState.viewCounts,
+                    activeMediaId = mediaMetadata?.id,
+                    isPlaying = isPlaying,
+                    selection = searchState.selection,
+                    hideExplicit = hideExplicit,
+                    actions = actions,
+                )
+
+                if (uiState.hasContinuation && uiState.songs.isNotEmpty() && uiState.isLoadingMore) {
+                    onlinePlaylistLoadingMoreItem()
+                }
+            } else {
+                onlinePlaylistErrorItem(
+                    error = uiState.error,
+                    onRetry = actions.onRetry,
+                )
             }
         }
 

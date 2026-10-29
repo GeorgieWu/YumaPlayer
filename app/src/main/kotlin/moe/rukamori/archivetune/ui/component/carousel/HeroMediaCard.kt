@@ -54,6 +54,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.ui.component.heroScrollCoverMotion
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -91,47 +92,11 @@ internal fun HeroMediaCard(
             modifier = Modifier
                 .fillMaxSize()
                 .heroPageMediaDrift(pageOffset)
-                .graphicsLayer {
-                    val rawProgress = scrollProgress()
-                    val p = if (animationsDisabled) 0f else rawProgress
-                    if (p > 0f) {
-                        translationY = p * size.height * HeroCarouselTokens.ScrollCoverFollow
-                        val zoom = 1f + p * HeroCarouselTokens.ScrollCoverZoom
-                        scaleX = zoom
-                        scaleY = zoom
-                        transformOrigin = TransformOrigin(0.5f, 0.35f)
-                        alpha = 1f - smoothstep(
-                            HeroCarouselTokens.ScrollCoverFadeFrom,
-                            HeroCarouselTokens.ScrollCoverFadeTo,
-                            p,
-                        )
-                        if (edgeBlur) {
-                            val soft = smoothstep(0f, HeroCarouselTokens.ScrollCoverSoftBy, p)
-                            val r = soft * HeroCarouselTokens.ScrollCoverSoftRadius
-                            renderEffect = if (r > 0.5f) {
-                                HeroBlurEffectCache.get(r, Shader.TileMode.CLAMP)
-                            } else {
-                                null
-                            }
-                        } else {
-                            renderEffect = null
-                        }
-                    } else {
-                        translationY = 0f
-                        scaleX = 1f
-                        scaleY = 1f
-                        alpha = 1f
-                        renderEffect = null
-                    }
-                }
-                .drawWithContent {
-                    drawContent()
-                    val rawProgress = scrollProgress()
-                    val p = if (animationsDisabled) 0f else rawProgress
-                    if (p > 0f) {
-                        drawRect(HeroCarouselTokens.ArtOverlayScrim.copy(alpha = HeroCarouselTokens.ScrollCoverDim * p))
-                    }
-                },
+                .heroScrollCoverMotion(
+                    scrollProgress = scrollProgress,
+                    animationsDisabled = animationsDisabled,
+                    edgeBlur = edgeBlur,
+                ),
         ) {
             Box(
                 modifier = Modifier

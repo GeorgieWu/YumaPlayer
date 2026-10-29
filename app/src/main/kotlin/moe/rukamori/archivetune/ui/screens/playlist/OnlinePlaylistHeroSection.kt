@@ -48,6 +48,7 @@ import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.innertube.models.PlaylistItem
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
+import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
 import moe.rukamori.archivetune.ui.settings.SettingsAnimations
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.theme.LocalYumaColors
@@ -63,6 +64,8 @@ fun OnlinePlaylistHeroSection(
     downloadState: HeaderDownloadState,
     systemBarsTopPadding: Dp,
     actions: OnlinePlaylistActions,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val hasArtwork = !playlist.thumbnail.isNullOrBlank()
@@ -79,6 +82,15 @@ fun OnlinePlaylistHeroSection(
             ),
         contentAlignment = Alignment.BottomCenter,
     ) {
+        if (hasArtwork) {
+            YumaImmersiveArtworkHeader(
+                thumbnailUrl = playlist.thumbnail,
+                progress = headerProgress,
+                disableBlur = disableBlur,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

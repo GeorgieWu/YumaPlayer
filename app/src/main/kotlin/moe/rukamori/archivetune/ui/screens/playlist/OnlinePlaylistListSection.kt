@@ -153,6 +153,8 @@ fun LazyListScope.onlinePlaylistHeaderItem(
     downloadState: HeaderDownloadState,
     systemBarsTopPadding: Dp,
     actions: OnlinePlaylistActions,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
 ) {
     item(key = ONLINE_PLAYLIST_KEY_HEADER, contentType = CONTENT_TYPE_ONLINE_PLAYLIST_HEADER) {
         OnlinePlaylistHeroSection(
@@ -161,6 +163,8 @@ fun LazyListScope.onlinePlaylistHeaderItem(
             downloadState = downloadState,
             systemBarsTopPadding = systemBarsTopPadding,
             actions = actions,
+            headerProgress = headerProgress,
+            disableBlur = disableBlur,
             modifier = Modifier.animateItem(),
         )
     }
