@@ -99,7 +99,7 @@ fun ScaffoldShell(
             LocalPlayerIsExpanded provides appState.playerBottomSheetState.isExpanded,
         ) {
             ScreenBackground(
-                isVisible = LocalGlobalVisibility.current && !isArtworkDetailRoute(appState.currentRoute),
+                isVisible = LocalGlobalVisibility.current,
                 modifier = Modifier.fillMaxSize(),
             )
             if (splashEnabled) {

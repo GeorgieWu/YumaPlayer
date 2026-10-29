@@ -5,6 +5,7 @@
 
 package moe.rukamori.archivetune.ui.component
 
+import android.annotation.SuppressLint
 import android.graphics.Shader
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -13,11 +14,21 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 
 internal object ImmersiveArtworkTokens {
-    val BackdropHeight: Dp = 520.dp
+    const val BackdropHeightFraction = 0.55f
+
+    val BackdropHeight: Dp
+        @SuppressLint("ConfigurationScreenWidthHeight") @Composable
+        get() = (LocalConfiguration.current.screenHeightDp * BackdropHeightFraction).dp
+
     val HeaderExtraHeight: Dp = 96.dp
-    val HeaderMinHeight: Dp = BackdropHeight + HeaderExtraHeight
+
+    val HeaderMinHeight: Dp
+        @Composable
+        get() = BackdropHeight + HeaderExtraHeight
 
     const val ScrollCoverFollow = 0.20f
     const val ScrollCoverZoom = 0.22f
