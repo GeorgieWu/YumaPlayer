@@ -61,6 +61,7 @@ fun ScaffoldShell(
     activity: ComponentActivity, navController: NavHostController, database: MusicDatabase, downloadUtil: DownloadUtil,
     syncUtils: SyncUtils, playerConnection: PlayerConnection?, systemBarController: SystemBarController, playerViewModel: PlayerViewModel,
     bottomSheetPageState: BottomSheetPageState, menuState: MenuState, updateChannel: UpdateChannel, isHomeScreenVisible: Boolean,
+    playerExpansionFraction: () -> Float = { 0f },
     onExpansionFraction: (() -> Float) -> Unit, disableAnimations: Boolean, marqueeEnabled: Boolean = true, splashEnabled: Boolean, useDarkTheme: Boolean,
     pureBlack: Boolean, homeBackgroundStyle: HomeBackgroundStyle, homeBackgroundParallaxEnabled: Boolean, homeBackgroundParallaxStrength: Float,
     homeBackgroundBrightness: Float, contentAlpha: Float, contentVisible: Boolean, onBurstStart: () -> Unit,
@@ -170,9 +171,16 @@ fun ScaffoldShell(
                         NavigationHost(
                             navController = navController, topAppBarScrollBehavior = appState.scrollController.topAppBarScrollBehavior,
                             hazeState = scaffoldHazeState.effectiveHazeState, updateState = appState.updateState,
-                            modifier = Modifier.fillMaxSize().then(
-                                if (scaffoldHazeState.effectiveSearchHazeState != null) Modifier.hazeSource(scaffoldHazeState.effectiveSearchHazeState) else Modifier,
-                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    if (scaffoldHazeState.effectiveSearchHazeState != null) Modifier.hazeSource(scaffoldHazeState.effectiveSearchHazeState) else Modifier,
+                                )
+                                .graphicsLayer {
+                                    val scale = if (disableAnimations) 1f else 1f - 0.06f * playerExpansionFraction().coerceIn(0f, 1f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
                             homeScrollConnection = appState.scrollController.homeScrollBehavior.nestedScrollConnection,
                             searchScrollConnection = appState.scrollController.searchScrollBehavior.nestedScrollConnection,
                             onClearUpdateBadge = { appState.updateViewModel.dismissUpdate() }, disableAnimations = disableAnimations,

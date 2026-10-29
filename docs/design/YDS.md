@@ -207,6 +207,7 @@ Dropdowns, context dialogs, and single-choice selectors follow **YDS 2.1 segment
 - **Transparent Destinations & Backgrounds:** Destinations remain transparent to preserve the global Canvas/background. While slide and scale transitions do not alter alpha, transparent screen regions intentionally reveal the global Canvas or underlying content. Transition removal of alpha fading does not guarantee per-destination opacity.
 - **Disabled Animations:** `disableAnimations` takes top priority across all transitions, resolving immediately via zero-duration fades (`tween(0)`).
 - **Lightweight Transform Motion:** Transitions use pure transform operations without runtime blur shaders, offscreen buffers, or shared-element/container transforms.
+- **Background Recession Motion:** When the fullscreen player sheet expands, the active navigation layer scales down from `1.0f` to `0.94f` via `1f - 0.06f * p` where `p` is the expansion progress clamped to `[0..1]`. The recession applies strictly to the navigation content layer (`NavigationHost`), leaving the global canvas/background and player overlay unscaled. When collapsed (`p = 0`) or when `disableAnimations` is true, scale is restored to identity (`1.0f`).
 - **Predictive Back:** Back gesture handling delegates to standard `navigation-compose` (2.9.8) and Android manifest opt-in without explicit custom handlers.
 
 ---

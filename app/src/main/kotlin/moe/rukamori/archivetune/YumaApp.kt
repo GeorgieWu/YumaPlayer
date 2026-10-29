@@ -212,6 +212,7 @@ fun YumaApp(
             menuState = menuState,
             updateChannel = updateChannel,
             isHomeScreenVisible = isHomeScreenVisible,
+            playerExpansionFraction = { playerExpansionFractionProvider() },
             onExpansionFraction = { playerExpansionFractionProvider = it },
             disableAnimations = disableAnimations,
             marqueeEnabled = marqueeEnabled,
