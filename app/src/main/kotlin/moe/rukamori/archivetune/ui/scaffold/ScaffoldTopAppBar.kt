@@ -1,3 +1,8 @@
+/*
+ * YumaPlayer (2026) | Original work by MuwMix
+ * GPL-3.0 License | Contributors: see git history
+ */
+
 package moe.rukamori.archivetune.ui.scaffold
 
 import android.os.Build
@@ -57,7 +62,7 @@ import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
-import moe.rukamori.archivetune.ui.component.carousel.LocalHeroScrollProgress
+import moe.rukamori.archivetune.ui.component.carousel.smoothstep
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.state.UpdateState
@@ -97,7 +102,6 @@ fun ScaffoldTopAppBar(
     val surfaceColor = MaterialTheme.colorScheme.surface
     val (disableBlur) = rememberPreference(DisableBlurKey, false)
     val animationsDisabled = LocalAnimationsDisabled.current
-    val heroScrollProgress = LocalHeroScrollProgress.current
 
     val isHomeTopBlurActive = isHomeRoute &&
             blurNavBar &&
@@ -164,10 +168,21 @@ fun ScaffoldTopAppBar(
                     .height(AppBarHeight + statusBarTop)
                     .then(
                         if (isHomeTopBlurActive && hazeStyle != null) {
+                            val homeScrollConnection = currentScrollBehavior.nestedScrollConnection as? HomeScrollConnection
                             Modifier
                                 .graphicsLayer {
-                                    val p = heroScrollProgress()
-                                    alpha = if (p <= 0.85f) 0f else ((p - 0.85f) / 0.15f).coerceIn(0f, 1f)
+                                    if (homeScrollConnection != null) {
+                                        val p = homeScrollConnection.heroScrollProgress()
+                                        alpha = if (homeScrollConnection.isHeroPresent) {
+                                            smoothstep(0.70f, 0.95f, p)
+                                        } else {
+                                            p
+                                        }
+                                    } else {
+                                        val offset = currentScrollBehavior.state.heightOffset
+                                        val limit = currentScrollBehavior.state.heightOffsetLimit
+                                        alpha = if (limit != 0f) (-offset / -limit).coerceIn(0f, 1f) else 0f
+                                    }
                                 }
                                 .hazeBlur(
                                     input = HazeInput.Sources(hazeState),
@@ -185,7 +200,16 @@ fun ScaffoldTopAppBar(
                                     ),
                                 )
                         } else {
-                            Modifier.background(Color.Transparent)
+                            Modifier.background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        surfaceColor.copy(alpha = 0.95f),
+                                        surfaceColor.copy(alpha = 0.85f),
+                                        surfaceColor.copy(alpha = 0.6f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            )
                         },
                     ),
             )

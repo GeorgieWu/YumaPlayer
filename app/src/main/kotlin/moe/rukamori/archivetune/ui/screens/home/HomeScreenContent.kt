@@ -10,24 +10,23 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -41,6 +40,7 @@ import moe.rukamori.archivetune.playback.PlayerConnection
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.carousel.LocalHeroScrollProgress
+import moe.rukamori.archivetune.ui.scaffold.HomeScrollConnection
 import moe.rukamori.archivetune.ui.screens.HomeSectionHeader
 import moe.rukamori.archivetune.ui.screens.QuickPicksSection
 import moe.rukamori.archivetune.ui.screens.SpeedDialSection
@@ -63,6 +63,7 @@ internal fun HomeContent(
     forgottenFavoritesGridState: LazyGridState,
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
+    headerScrollConnection: NestedScrollConnection? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         ExpressivePullToRefreshBox(
@@ -96,19 +97,44 @@ internal fun HomeContent(
                     }
 
                 val isFilterActive = uiState.selectedChip != null
-
                 val insetsPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
                 val isHeroMode = uiState.quickPicksDisplayMode == moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO
 
-                val heroScrollProgress: () -> Float = remember(lazyListState) {
+                val density = LocalDensity.current
+                val collapseDistancePx = with(density) { 360.dp.toPx() }
+
+                val heroScrollProgress: () -> Float = remember(lazyListState, collapseDistancePx) {
                     {
-                        val firstIndex = lazyListState.firstVisibleItemIndex
-                        if (firstIndex > 0) {
+                        if (lazyListState.firstVisibleItemIndex > 0) {
                             1f
                         } else {
-                            val itemInfo = lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()
-                            val totalHeight = itemInfo?.size?.toFloat() ?: 1f
-                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / totalHeight).coerceIn(0f, 1f)
+                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / collapseDistancePx).coerceIn(0f, 1f)
+                        }
+                    }
+                }
+
+                val isHeroPresent = isHeroMode && !isFilterActive && uiState.quickPicks.isNotEmpty()
+
+                val nonHeroScrollProgress: () -> Float = remember(lazyListState) {
+                    {
+                        if (lazyListState.firstVisibleItemIndex > 0) {
+                            1f
+                        } else {
+                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / with(density) { 40.dp.toPx() }).coerceIn(0f, 1f)
+                        }
+                    }
+                }
+
+                val homeScrollConnection = headerScrollConnection as? HomeScrollConnection
+                DisposableEffect(homeScrollConnection, isHeroPresent, heroScrollProgress, nonHeroScrollProgress) {
+                    homeScrollConnection?.let {
+                        it.isHeroPresent = isHeroPresent
+                        it.heroScrollProgress = if (isHeroPresent) heroScrollProgress else nonHeroScrollProgress
+                    }
+                    onDispose {
+                        homeScrollConnection?.let {
+                            it.isHeroPresent = false
+                            it.heroScrollProgress = { 0f }
                         }
                     }
                 }
@@ -116,16 +142,15 @@ internal fun HomeContent(
                 LazyColumn(
                     state = lazyListState,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = insetsPadding.calculateLeftPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+                        start = insetsPadding.calculateLeftPadding(LocalLayoutDirection.current),
                         top = if (isHeroMode) 0.dp else insetsPadding.calculateTopPadding(),
-                        end = insetsPadding.calculateRightPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+                        end = insetsPadding.calculateRightPadding(LocalLayoutDirection.current),
                         bottom = insetsPadding.calculateBottomPadding(),
                     ),
-                    modifier =
-                        Modifier
-                            .widthIn(max = HomeFeedMaxWidth)
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter),
+                    modifier = Modifier
+                        .widthIn(max = HomeFeedMaxWidth)
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter),
                 ) {
                     if (uiState.quickPicksDisplayMode != moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO) {
                         homeCategoryChipsSection(

@@ -5,13 +5,47 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.navigation.NavBackStackEntry
 import moe.rukamori.archivetune.ui.component.BottomSheetState
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.screens.search.OnlineSearchResultRoutePrefix
 import moe.rukamori.archivetune.ui.utils.appBarScrollBehavior
 import moe.rukamori.archivetune.ui.utils.resetHeightOffset
+
+@Stable
+interface HomeScrollConnection : NestedScrollConnection {
+    var isHeroPresent: Boolean
+    var heroScrollProgress: () -> Float
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Stable
+class HomeAppBarScrollBehavior(
+    private val delegate: TopAppBarScrollBehavior,
+) : TopAppBarScrollBehavior by delegate {
+    var isHeroPresent by mutableStateOf(false)
+    var heroScrollProgress by mutableStateOf<() -> Float>({ 0f })
+
+    override val nestedScrollConnection: NestedScrollConnection =
+        object : HomeScrollConnection, NestedScrollConnection by delegate.nestedScrollConnection {
+            override var isHeroPresent: Boolean
+                get() = this@HomeAppBarScrollBehavior.isHeroPresent
+                set(value) {
+                    this@HomeAppBarScrollBehavior.isHeroPresent = value
+                }
+
+            override var heroScrollProgress: () -> Float
+                get() = this@HomeAppBarScrollBehavior.heroScrollProgress
+                set(value) {
+                    this@HomeAppBarScrollBehavior.heroScrollProgress = value
+                }
+        }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Stable
@@ -44,7 +78,7 @@ fun rememberScaffoldScrollController(
     topLevelScreens: List<String>,
     active: Boolean = false,
 ): ScaffoldScrollController {
-    val homeScrollBehavior =
+    val rawHomeScrollBehavior =
         appBarScrollBehavior(
             canScroll = {
                 navBackStackEntry?.destination?.route?.startsWith(OnlineSearchResultRoutePrefix) == false &&
@@ -52,6 +86,9 @@ fun rememberScaffoldScrollController(
                     (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
             },
         )
+    val homeScrollBehavior = remember(rawHomeScrollBehavior) {
+        HomeAppBarScrollBehavior(rawHomeScrollBehavior)
+    }
     val searchScrollBehavior =
         appBarScrollBehavior(
             canScroll = {
