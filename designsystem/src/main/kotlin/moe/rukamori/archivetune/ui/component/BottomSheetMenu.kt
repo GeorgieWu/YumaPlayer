@@ -62,7 +62,6 @@ class MenuState(
         isVisible = false
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomSheetMenu(
@@ -81,11 +80,7 @@ fun BottomSheetMenu(
                 if (fullHeight <= 0f) {
                     0f
                 } else {
-                    val currentOffset = try {
-                        sheetState.requireOffset()
-                    } catch (_: IllegalStateException) {
-                        fullHeight
-                    }
+                    val currentOffset = runCatching { sheetState.requireOffset() }.getOrDefault(fullHeight)
                     ((fullHeight - currentOffset) / fullHeight).coerceIn(0f, 1f)
                 }
             }
