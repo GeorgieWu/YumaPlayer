@@ -9,10 +9,13 @@
 package moe.rukamori.archivetune.ui.screens.playlist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -21,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -32,7 +34,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -44,11 +45,12 @@ import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalDownloadUtil
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
-import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -90,13 +92,6 @@ fun OnlinePlaylistScreen(
 
     val searchState = rememberOnlinePlaylistSearchState(songs)
     val downloadUiState = rememberOnlinePlaylistDownloadUiState()
-    val (gradientColors, gradientAlpha) =
-        rememberOnlinePlaylistGradientState(
-            thumbnailUrl = playlist?.thumbnail,
-            context = context,
-            fallbackColor = MaterialTheme.colorScheme.surface.toArgb(),
-            lazyListState = lazyListState,
-        )
 
     OnlinePlaylistEffects(
         searchState = searchState,
@@ -147,67 +142,84 @@ fun OnlinePlaylistScreen(
         }
     }
     val hasHeader = headerItems > 0
+    val hasArtworkBackdrop = hasHeader && !uiState.playlist?.thumbnail.isNullOrBlank()
+
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
-        hasCollapsibleHeader = hasHeader,
-        collapseDistance = systemBarsTopPadding + AppBarHeight + 248.dp,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
         standardThreshold = 48.dp,
     )
+
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
     ExpressivePullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = viewModel::refresh,
         modifier = Modifier.fillMaxSize().background(Color.Transparent),
     ) {
-        OnlinePlaylistGradientBackground(
-            gradientColors = gradientColors,
-            gradientAlpha = gradientAlpha,
-            surfaceColor = MaterialTheme.colorScheme.surface,
-            disableBlur = disableBlur,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-
-        LazyColumn(
-            state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
-            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(hazeState),
         ) {
-            if (uiState.isLoading) {
-                onlinePlaylistShimmerItem(systemBarsTopPadding = systemBarsTopPadding)
-            } else if (uiState.playlist != null) {
-                if (!searchState.isSearching) {
-                    onlinePlaylistHeaderItem(
-                        playlist = uiState.playlist,
-                        isBookmarked = uiState.isBookmarked,
-                        downloadState = downloadUiState.downloadState,
-                        gradientColors = gradientColors,
-                        systemBarsTopPadding = systemBarsTopPadding,
+            if (hasArtworkBackdrop) {
+                YumaImmersiveArtworkHeader(
+                    thumbnailUrl = uiState.playlist?.thumbnail,
+                    progress = headerProgress,
+                    disableBlur = disableBlur,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+
+            LazyColumn(
+                state = lazyListState,
+                contentPadding = contentPadding,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (uiState.isLoading) {
+                    onlinePlaylistShimmerItem()
+                } else if (uiState.playlist != null) {
+                    if (!searchState.isSearching) {
+                        onlinePlaylistHeaderItem(
+                            playlist = uiState.playlist,
+                            isBookmarked = uiState.isBookmarked,
+                            downloadState = downloadUiState.downloadState,
+                            systemBarsTopPadding = systemBarsTopPadding,
+                            actions = actions,
+                        )
+                    }
+
+                    if (uiState.songs.isEmpty() && !uiState.isLoading && uiState.error == null) {
+                        onlinePlaylistEmptyItem()
+                    }
+
+                    onlinePlaylistSongItems(
+                        wrappedSongs = searchState.wrappedSongs,
+                        viewCounts = uiState.viewCounts,
+                        activeMediaId = mediaMetadata?.id,
+                        isPlaying = isPlaying,
+                        selection = searchState.selection,
+                        hideExplicit = hideExplicit,
                         actions = actions,
                     )
-                }
 
-                if (uiState.songs.isEmpty() && !uiState.isLoading && uiState.error == null) {
-                    onlinePlaylistEmptyItem()
+                    if (uiState.hasContinuation && uiState.songs.isNotEmpty() && uiState.isLoadingMore) {
+                        onlinePlaylistLoadingMoreItem()
+                    }
+                } else {
+                    onlinePlaylistErrorItem(
+                        error = uiState.error,
+                        onRetry = actions.onRetry,
+                    )
                 }
-
-                onlinePlaylistSongItems(
-                    wrappedSongs = searchState.wrappedSongs,
-                    viewCounts = uiState.viewCounts,
-                    activeMediaId = mediaMetadata?.id,
-                    isPlaying = isPlaying,
-                    selection = searchState.selection,
-                    hideExplicit = hideExplicit,
-                    actions = actions,
-                )
-
-                if (uiState.hasContinuation && uiState.songs.isNotEmpty() && uiState.isLoadingMore) {
-                    onlinePlaylistLoadingMoreItem()
-                }
-            } else {
-                onlinePlaylistErrorItem(
-                    error = uiState.error,
-                    onRetry = actions.onRetry,
-                )
             }
         }
 
@@ -222,7 +234,7 @@ fun OnlinePlaylistScreen(
 
         HeaderHazeBackdrop(
             progress = headerProgress,
-            hasCollapsibleHeader = hasHeader,
+            hasCollapsibleHeader = hasArtworkBackdrop,
             hazeState = hazeState,
             modifier = Modifier.align(Alignment.TopCenter),
         )
