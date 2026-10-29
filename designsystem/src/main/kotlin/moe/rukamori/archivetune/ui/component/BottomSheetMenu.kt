@@ -22,15 +22,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
@@ -44,6 +49,7 @@ class MenuState(
 ) {
     var isVisible by mutableStateOf(isVisible)
     var content by mutableStateOf(content)
+    var progressProvider: () -> Float by mutableStateOf({ 0f })
 
     @OptIn(ExperimentalMaterial3Api::class)
     fun show(content: @Composable ColumnScope.() -> Unit) {
@@ -67,15 +73,39 @@ fun BottomSheetMenu(
     val focusManager = LocalFocusManager.current
 
     if (state.isVisible) {
+        val sheetState = rememberModalBottomSheetState()
+        var fullHeight by remember { mutableFloatStateOf(0f) }
+
+        DisposableEffect(state, sheetState) {
+            state.progressProvider = {
+                if (fullHeight <= 0f) {
+                    0f
+                } else {
+                    val currentOffset = try {
+                        sheetState.requireOffset()
+                    } catch (_: IllegalStateException) {
+                        fullHeight
+                    }
+                    ((fullHeight - currentOffset) / fullHeight).coerceIn(0f, 1f)
+                }
+            }
+            onDispose {
+                state.progressProvider = { 0f }
+            }
+        }
+
         ModalBottomSheet(
             onDismissRequest = {
                 focusManager.clearFocus()
                 state.isVisible = false
             },
+            sheetState = sheetState,
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
             dragHandle = null,
-            modifier = modifier.fillMaxHeight(),
+            modifier = modifier
+                .fillMaxHeight()
+                .onSizeChanged { fullHeight = it.height.toFloat() },
         ) {
             Surface(
                 modifier = modifier
