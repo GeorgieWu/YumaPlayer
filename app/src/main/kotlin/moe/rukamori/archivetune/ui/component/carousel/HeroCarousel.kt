@@ -1,0 +1,174 @@
+/*
+ * YumaPlayer (2026) | Modified work by MuwMix
+ * Adapted from Mochy Music (GPL-3.0)
+ * GPL-3.0 License | Contributors: see git history
+ */
+
+package moe.rukamori.archivetune.ui.component.carousel
+
+import android.os.Build
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import kotlinx.coroutines.delay
+import moe.rukamori.archivetune.LocalAnimationsDisabled
+import moe.rukamori.archivetune.constants.DisableBlurKey
+import moe.rukamori.archivetune.models.MediaMetadata
+import moe.rukamori.archivetune.utils.rememberPreference
+
+@Composable
+internal fun HeroCarousel(
+    items: List<HeroItem>,
+    rollCandidates: List<HeroItem>,
+    rollState: HeroRollState,
+    mediaMetadata: MediaMetadata?,
+    isPlaying: Boolean,
+    isCarouselActive: Boolean,
+    onTrackClick: (String) -> Unit,
+    onTrackLongClick: (String) -> Unit,
+    onRoll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val displayItems = remember(items, rollCandidates.size) {
+        buildList {
+            addAll(items.map { HeroDisplayItem.Track(it) })
+            if (rollCandidates.size >= HeroCarouselTokens.GachaMinPool) {
+                add(HeroDisplayItem.RollCard)
+            }
+        }
+    }
+
+    if (displayItems.isEmpty()) return
+
+    val isSingleItem = displayItems.size == 1
+    val pagerState = rememberPagerState(
+        initialPage = if (isSingleItem) 0 else (Int.MAX_VALUE / 2) - ((Int.MAX_VALUE / 2) % displayItems.size),
+        pageCount = { if (isSingleItem) 1 else Int.MAX_VALUE },
+    )
+
+    val context = LocalContext.current
+    val (disableBlur) = rememberPreference(DisableBlurKey, false)
+    val edgeBlur = !disableBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val animationsDisabled = LocalAnimationsDisabled.current
+
+    val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
+    var userSwipe by remember { mutableStateOf(false) }
+    LaunchedEffect(isDragged) { if (isDragged) userSwipe = true }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }.collect { inProgress ->
+            if (!inProgress) userSwipe = false
+        }
+    }
+
+    val wipeCurveState = animateFloatAsState(
+        targetValue = if (userSwipe && !animationsDisabled) 1f else 0f,
+        animationSpec = if (animationsDisabled) snap() else tween(260),
+        label = "heroWipeCurve",
+    )
+    val wipeCurveProvider = remember(wipeCurveState) { { wipeCurveState.value } }
+
+    if (!isSingleItem && !animationsDisabled) {
+        LaunchedEffect(pagerState, displayItems.size, isDragged, rollState.phase, isCarouselActive) {
+            if (isDragged || !isCarouselActive) return@LaunchedEffect
+            while (true) {
+                val currentItem = displayItems[pagerState.currentPage.mod(displayItems.size)]
+                val onRoll = currentItem is HeroDisplayItem.RollCard
+                if (onRoll && rollState.phase != HeroRollPhase.Idle) return@LaunchedEffect
+                delay(if (onRoll) HeroCarouselTokens.HeroRollIdleAdvanceMillis else HeroCarouselTokens.HeroAdvanceMillis)
+                if (!isCarouselActive) continue
+                pagerState.animateScrollToPage(
+                    page = pagerState.currentPage + 1,
+                    animationSpec = tween(
+                        HeroCarouselTokens.HeroSlideMillis,
+                        easing = HeroCarouselTokens.HeroSlideEasing,
+                    ),
+                )
+            }
+        }
+
+        LaunchedEffect(pagerState.currentPage, displayItems) {
+            val nextItem = displayItems[(pagerState.currentPage + 1).mod(displayItems.size)]
+            if (nextItem is HeroDisplayItem.Track) {
+                nextItem.item.thumbnailUrl?.let { url ->
+                    context.imageLoader.enqueue(ImageRequest.Builder(context).data(url).build())
+                }
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = !isSingleItem && rollState.phase != HeroRollPhase.Rolling,
+            key = { page ->
+                val item = displayItems[page.mod(displayItems.size)]
+                "${item.key}_$page"
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            val displayItem = displayItems[page.mod(displayItems.size)]
+            when (displayItem) {
+                is HeroDisplayItem.RollCard -> {
+                    HeroRollCard(
+                        state = rollState,
+                        pageOffset = { pagerState.offsetOf(page) },
+                        wipeCurve = wipeCurveProvider,
+                        isResultPlaying = isPlaying && rollState.result != null && mediaMetadata?.id == rollState.result?.id,
+                        edgeBlur = edgeBlur,
+                        isCarouselActive = isCarouselActive,
+                        animationsDisabled = animationsDisabled,
+                        onRoll = onRoll,
+                        onPlayResult = onTrackClick,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                is HeroDisplayItem.Track -> {
+                    HeroMediaCard(
+                        item = displayItem.item,
+                        pageOffset = { pagerState.offsetOf(page) },
+                        wipeCurve = wipeCurveProvider,
+                        isThisPlaying = isPlaying && mediaMetadata?.id == displayItem.item.id,
+                        edgeBlur = edgeBlur,
+                        onPrimaryClick = { onTrackClick(displayItem.item.id) },
+                        onLongClick = { onTrackLongClick(displayItem.item.id) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+
+        HeroCarouselIndicator(
+            pageCount = displayItems.size,
+            currentPage = pagerState.currentPage,
+            animationsDisabled = animationsDisabled,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 14.dp),
+        )
+    }
+}
+
+private fun PagerState.offsetOf(page: Int): Float =
+    (page - currentPage) - currentPageOffsetFraction

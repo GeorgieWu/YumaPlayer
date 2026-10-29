@@ -329,4 +329,10 @@
     <string name="aod_customize_title">Настройка AOD</string>
     <string name="aod_customize_subtitle">Форма, компоновка, элементы управления и стилизация интерфейса</string>
     <string name="aod_customize_entry_desc">Настройка always-on экрана проигрывателя</string>
+    <string name="quick_picks_display_mode_hero">Карусель</string>
+    <string name="quick_picks_hero_roll_title">Выбрать трек</string>
+    <string name="quick_picks_hero_roll_action">Крутить</string>
+    <string name="quick_picks_hero_rolling">Выбираем…</string>
+    <string name="quick_picks_hero_roll_again">Ещё раз</string>
+    <string name="quick_picks_hero_roll_result">Твой трек</string>
 </resources>

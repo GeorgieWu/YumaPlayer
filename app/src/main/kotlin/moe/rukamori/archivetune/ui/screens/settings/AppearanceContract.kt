@@ -87,7 +87,7 @@ data class AppearanceSettingsUiState(
     val fontPreference: AppFontPreference = AppFontPreference.DEFAULT,
     val customFontUri: String = "",
     val customFontName: String = "",
-    val quickPicksDisplayMode: QuickPicksDisplayMode = QuickPicksDisplayMode.CARD,
+    val quickPicksDisplayMode: QuickPicksDisplayMode = QuickPicksDisplayMode.HERO,
     val defaultOpenTab: NavigationTab = NavigationTab.HOME,
     val defaultChip: LibraryFilter = LibraryFilter.LIBRARY,
     val showHomeCategoryChips: Boolean = true,

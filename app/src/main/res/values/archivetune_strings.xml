@@ -282,8 +282,14 @@
     <string name="lyrics_romanize_hindi">Romanize hindi lyrics</string>
     <string name="lyrics_romanize_other_languages">Romanize other non-latin lyrics</string>
     <string name="quick_picks_display_mode">Quick Picks display mode</string>
+    <string name="quick_picks_display_mode_hero">Carousel</string>
     <string name="quick_picks_display_mode_card">Card</string>
     <string name="quick_picks_display_mode_list">List</string>
+    <string name="quick_picks_hero_roll_title">Pick a track</string>
+    <string name="quick_picks_hero_roll_action">Roll</string>
+    <string name="quick_picks_hero_rolling">Choosing…</string>
+    <string name="quick_picks_hero_roll_again">Roll again</string>
+    <string name="quick_picks_hero_roll_result">Your pick</string>
     <string name="discord">Discord</string>
     <string name="advanced_login">Login with token</string>
     <string name="token_hidden">Tap to show token</string>

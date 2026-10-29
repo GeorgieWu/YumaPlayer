@@ -177,9 +177,11 @@ fun ScaffoldShell(
                                     if (scaffoldHazeState.effectiveSearchHazeState != null) Modifier.hazeSource(scaffoldHazeState.effectiveSearchHazeState) else Modifier,
                                 )
                                 .graphicsLayer {
-                                    val scale = if (disableAnimations) 1f else 1f - 0.06f * playerExpansionFraction().coerceIn(0f, 1f)
+                                    val p = if (disableAnimations) 0f else playerExpansionFraction().coerceIn(0f, 1f)
+                                    val scale = 1f - 0.06f * p
                                     scaleX = scale
                                     scaleY = scale
+                                    alpha = if (p > 0.9f) ((1f - p) / 0.1f).coerceIn(0f, 1f) else 1f
                                 },
                             homeScrollConnection = appState.scrollController.homeScrollBehavior.nestedScrollConnection,
                             searchScrollConnection = appState.scrollController.searchScrollBehavior.nestedScrollConnection,

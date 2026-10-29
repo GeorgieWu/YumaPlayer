@@ -176,7 +176,7 @@ fun AppearanceSettings(navController: NavController) {
     val (quickPicksDisplayMode, onQuickPicksDisplayModeChange) =
         rememberEnumPreference(
             QuickPicksDisplayModeKey,
-            defaultValue = QuickPicksDisplayMode.CARD,
+            defaultValue = QuickPicksDisplayMode.HERO,
         )
     val (marqueeEnabled, onMarqueeEnabledChange) =
         rememberPreference(

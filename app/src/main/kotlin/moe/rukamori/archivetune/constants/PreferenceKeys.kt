@@ -429,6 +429,7 @@ enum class LibraryViewType {
 }
 
 enum class QuickPicksDisplayMode {
+    HERO,
     CARD,
     LIST,
 }

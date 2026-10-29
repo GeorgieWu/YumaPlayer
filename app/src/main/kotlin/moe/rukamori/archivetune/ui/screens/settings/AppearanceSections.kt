@@ -427,6 +427,7 @@ fun AppearanceMiscSection(
                 onValueSelected = onQuickPicksDisplayModeChange,
                 valueText = {
                     when (it) {
+                        QuickPicksDisplayMode.HERO -> stringResource(R.string.quick_picks_display_mode_hero)
                         QuickPicksDisplayMode.CARD -> stringResource(R.string.quick_picks_display_mode_card)
                         QuickPicksDisplayMode.LIST -> stringResource(R.string.quick_picks_display_mode_list)
                     }

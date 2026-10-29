@@ -95,6 +95,17 @@ fun QuickPicksSection(
         }
 
         when (displayMode) {
+            QuickPicksDisplayMode.HERO -> {
+                QuickPicksHeroContent(
+                    distinctQuickPicks = distinctQuickPicks,
+                    mediaMetadata = mediaMetadata,
+                    isPlaying = isPlaying,
+                    navController = navController,
+                    playerConnection = playerConnection,
+                    menuState = menuState,
+                )
+            }
+
             QuickPicksDisplayMode.CARD -> {
                 QuickPicksCardContent(
                     distinctQuickPicks = distinctQuickPicks,
