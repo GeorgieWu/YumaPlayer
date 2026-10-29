@@ -112,6 +112,7 @@ import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
 import moe.rukamori.archivetune.ui.component.SongListItem
 import moe.rukamori.archivetune.ui.component.SortHeader
 import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
+import moe.rukamori.archivetune.ui.component.artworkBackground
 import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
@@ -301,7 +302,7 @@ fun TopPlaylistScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(artworkBackground.backgroundColor),
+                .artworkBackground(artworkBackground),
     ) {
         ProvideArtworkSurface(artworkBackground) {
             LazyColumn(

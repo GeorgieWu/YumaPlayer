@@ -83,6 +83,7 @@ import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.artworkBackground
 import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -221,7 +222,7 @@ fun SpotifyPlaylistScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(artworkBackground.backgroundColor),
+                .artworkBackground(artworkBackground),
     ) {
         ProvideArtworkSurface(artworkBackground) {
             LazyColumn(

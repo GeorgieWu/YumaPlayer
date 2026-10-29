@@ -52,6 +52,7 @@ import moe.rukamori.archivetune.playback.queues.ListQueue
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.artworkBackground
 import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
@@ -190,7 +191,7 @@ fun AutoPlaylistScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(artworkBackground.backgroundColor),
+                .artworkBackground(artworkBackground),
     ) {
         ProvideArtworkSurface(artworkBackground) {
             LazyColumn(

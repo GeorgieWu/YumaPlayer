@@ -51,6 +51,7 @@ import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.artworkBackground
 import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
@@ -166,7 +167,7 @@ fun OnlinePlaylistScreen(
     ExpressivePullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = viewModel::refresh,
-        modifier = Modifier.fillMaxSize().background(artworkBackground.backgroundColor),
+        modifier = Modifier.fillMaxSize().artworkBackground(artworkBackground),
     ) {
         ProvideArtworkSurface(artworkBackground) {
             LazyColumn(

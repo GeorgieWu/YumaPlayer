@@ -68,6 +68,7 @@ import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
 import moe.rukamori.archivetune.ui.component.SpotifyTrackListItem
+import moe.rukamori.archivetune.ui.component.artworkBackground
 import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
@@ -152,7 +153,7 @@ fun SpotifyAlbumScreen(
     }
     val artworkBackground = rememberArtworkBackground(artworkModel)
 
-    Box(modifier = Modifier.fillMaxSize().background(artworkBackground.backgroundColor)) {
+    Box(modifier = Modifier.fillMaxSize().artworkBackground(artworkBackground)) {
         ProvideArtworkSurface(artworkBackground) {
             ExpressivePullToRefreshBox(
             isRefreshing = false,
