@@ -18,11 +18,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -63,15 +66,9 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -86,6 +83,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastSumBy
 import dev.chrisbanes.haze.HazeState
@@ -93,18 +91,11 @@ import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
-import androidx.palette.graphics.Palette
-import coil3.compose.AsyncImage
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalDownloadUtil
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.MyTopFilter
 import moe.rukamori.archivetune.db.entities.Song
@@ -115,18 +106,20 @@ import moe.rukamori.archivetune.ui.component.DefaultDialog
 import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
 import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.SongListItem
 import moe.rukamori.archivetune.ui.component.SortHeader
+import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
+import moe.rukamori.archivetune.ui.screens.playlist.MetadataChip
 import moe.rukamori.archivetune.ui.settings.SettingsAnimations
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.theme.LocalYumaColors
-import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.ui.theme.yumaClickable
 import moe.rukamori.archivetune.ui.theme.yumaGlassCard
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadItem
@@ -268,67 +261,6 @@ fun TopPlaylistScreen(
 
     val lazyListState = rememberLazyListState()
 
-    // Gradient colors state for playlist cover
-    var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
-
-    // Capture fallback color in composable context
-    val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
-    // Extract gradient colors from playlist cover (first song thumbnail)
-    LaunchedEffect(songs) {
-        val thumbnailUrl = songs?.firstOrNull()?.song?.thumbnailUrl
-        if (thumbnailUrl != null) {
-            val request =
-                ImageRequest
-                    .Builder(context)
-                    .data(thumbnailUrl)
-                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                    .allowHardware(false)
-                    .build()
-
-            val result =
-                runCatching {
-                    context.imageLoader.execute(request)
-                }.getOrNull()
-
-            if (result != null) {
-                val bitmap = result.image?.toBitmap()
-                if (bitmap != null) {
-                    val palette =
-                        withContext(Dispatchers.Default) {
-                            Palette
-                                .from(bitmap)
-                                .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
-                                .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
-                                .generate()
-                        }
-
-                    val extractedColors =
-                        PlayerColorExtractor.extractGradientColors(
-                            palette = palette,
-                            fallbackColor = fallbackColor,
-                        )
-                    gradientColors = extractedColors
-                }
-            }
-        } else {
-            gradientColors = emptyList()
-        }
-    }
-
-    // Calculate gradient opacity based on scroll position
-    val gradientAlpha by remember {
-        derivedStateOf {
-            if (lazyListState.firstVisibleItemIndex == 0) {
-                val offset = lazyListState.firstVisibleItemScrollOffset
-                (1f - (offset / 600f)).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }
-    }
-
     val showTopBarTitle by remember {
         derivedStateOf {
             lazyListState.firstVisibleItemIndex > 0
@@ -344,12 +276,22 @@ fun TopPlaylistScreen(
         }
     }
     val hasHeader = headerItems > 0
+    val firstSongThumbnail = songs?.firstOrNull()?.song?.thumbnailUrl
+    val hasArtworkBackdrop = hasHeader && !firstSongThumbnail.isNullOrBlank()
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
-        hasCollapsibleHeader = hasHeader,
-        collapseDistance = systemBarsTopPadding + 48.dp + 240.dp,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
         standardThreshold = 48.dp,
     )
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
     Box(
         modifier =
@@ -357,132 +299,9 @@ fun TopPlaylistScreen(
                 .fillMaxSize()
                 .background(Color.Transparent),
     ) {
-        // Mesh gradient background layer
-        if (!disableBlur && gradientColors.isNotEmpty() && gradientAlpha > 0f) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .drawBehind {
-                            val width = size.width
-                            val height = size.height * 0.55f
-
-                            if (gradientColors.size >= 3) {
-                                val c0 = gradientColors[0]
-                                val c1 = gradientColors[1]
-                                val c2 = gradientColors[2]
-                                val c3 = gradientColors.getOrElse(3) { c0 }
-                                val c4 = gradientColors.getOrElse(4) { c1 }
-                                // Primary color blob - top center
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c0.copy(alpha = gradientAlpha * 0.75f),
-                                                    c0.copy(alpha = gradientAlpha * 0.4f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.5f, height * 0.15f),
-                                            radius = width * 0.8f,
-                                        ),
-                                )
-
-                                // Secondary color blob - left side
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c1.copy(alpha = gradientAlpha * 0.55f),
-                                                    c1.copy(alpha = gradientAlpha * 0.3f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.1f, height * 0.4f),
-                                            radius = width * 0.6f,
-                                        ),
-                                )
-
-                                // Third color blob - right side
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c2.copy(alpha = gradientAlpha * 0.5f),
-                                                    c2.copy(alpha = gradientAlpha * 0.25f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.9f, height * 0.35f),
-                                            radius = width * 0.55f,
-                                        ),
-                                )
-
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c3.copy(alpha = gradientAlpha * 0.35f),
-                                                    c3.copy(alpha = gradientAlpha * 0.18f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.25f, height * 0.65f),
-                                            radius = width * 0.75f,
-                                        ),
-                                )
-
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c4.copy(alpha = gradientAlpha * 0.3f),
-                                                    c4.copy(alpha = gradientAlpha * 0.15f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.55f, height * 0.85f),
-                                            radius = width * 0.9f,
-                                        ),
-                                )
-                            } else if (gradientColors.isNotEmpty()) {
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    gradientColors[0].copy(alpha = gradientAlpha * 0.7f),
-                                                    gradientColors[0].copy(alpha = gradientAlpha * 0.35f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.5f, height * 0.25f),
-                                            radius = width * 0.85f,
-                                        ),
-                                )
-                            }
-
-                            drawRect(
-                                brush =
-                                    Brush.verticalGradient(
-                                        colors =
-                                            listOf(
-                                                Color.Transparent,
-                                                Color.Transparent,
-                                                surfaceColor.copy(alpha = gradientAlpha * 0.22f),
-                                                surfaceColor.copy(alpha = gradientAlpha * 0.55f),
-                                                surfaceColor,
-                                            ),
-                                        startY = size.height * 0.35f,
-                                        endY = size.height,
-                                    ),
-                            )
-                        },
-            )
-        }
-
         LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (songs != null) {
@@ -495,280 +314,59 @@ fun TopPlaylistScreen(
                     }
                 } else {
                     if (!isSearching) {
-                        // Hero Header Item
                         item(key = "header") {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = systemBarsTopPadding + 48.dp)
-                                        .padding(horizontal = 24.dp)
-                                        .padding(bottom = 16.dp),
-                            ) {
-                                // Large centered artwork with shadow
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .size(240.dp)
-                                            .shadow(
-                                                elevation = 24.dp,
-                                                shape = RoundedCornerShape(16.dp),
-                                                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                            ),
-                                ) {
-                                    AsyncImage(
-                                        model = songs!!.firstOrNull()?.song?.thumbnailUrl,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier =
-                                            Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(16.dp)),
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                // Playlist title
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Metadata chips row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = SettingsDimensions.ScreenHorizontalPadding),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    // Song count chip
-                                    MetadataChip(
-                                        icon = R.drawable.music_note,
-                                        text =
-                                            pluralStringResource(
-                                                R.plurals.n_song,
-                                                songs!!.size,
-                                                songs!!.size,
-                                            ),
-                                        modifier = Modifier.weight(1f, fill = false),
-                                    )
-
-                                    // Duration chip
-                                    MetadataChip(
-                                        icon = R.drawable.timer,
-                                        text = makeTimeString(likeLength * 1000L),
-                                        modifier = Modifier.weight(1f, fill = false),
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-
-                                // Action buttons row
-                                val downloadLabel = stringResource(R.string.download)
-                                val playLabel = stringResource(R.string.play)
-                                val shuffleLabel = stringResource(R.string.shuffle)
-                                val queueLabel = stringResource(R.string.add_to_queue)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .size(48.dp)
-                                                .yumaClickable(
-                                                    pressedScale = SettingsAnimations.PressScale,
-                                                    onClick = {
-                                                        when (downloadState) {
-                                                            HeaderDownloadState.Completed -> {
-                                                                showRemoveDownloadDialog = true
-                                                            }
-
-                                                            else -> {
-                                                                sendAddMissingDownloads(
-                                                                    context = context,
-                                                                    songs =
-                                                                        songs.orEmpty().map {
-                                                                            HeaderDownloadItem(
-                                                                                id = it.song.id,
-                                                                                title = it.song.title,
-                                                                            )
-                                                                        },
-                                                                    downloads = downloads,
-                                                                )
-                                                            }
-                                                        }
-                                                    },
-                                                )
-                                                .yumaGlassCard(
-                                                    shape = CircleShape,
-                                                    backgroundColor = LocalYumaColors.current.glassBackground,
-                                                )
-                                                .clip(CircleShape)
-                                                .semantics(mergeDescendants = true) {
-                                                    contentDescription = downloadLabel
-                                                    role = Role.Button
-                                                },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        val state = downloadState
-                                        when (state) {
-                                            HeaderDownloadState.Completed -> {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.offline),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
-                                                )
-                                            }
-
-                                            is HeaderDownloadState.Partial -> {
-                                                CircularProgressIndicator(
-                                                    progress = { state.progress },
-                                                    modifier = Modifier.size(24.dp),
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    trackColor = MaterialTheme.colorScheme.outlineVariant,
-                                                    strokeWidth = 2.dp,
-                                                )
-                                            }
-
-                                            else -> {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.download),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
-                                                )
-                                            }
+                            TopPlaylistHeroSection(
+                                thumbnailUrl = songs!!.firstOrNull()?.song?.thumbnailUrl,
+                                name = name,
+                                songsCount = songs!!.size,
+                                likeLength = likeLength,
+                                downloadState = downloadState,
+                                systemBarsTopPadding = systemBarsTopPadding,
+                                headerProgress = headerProgress,
+                                disableBlur = disableBlur,
+                                onDownloadClick = {
+                                    when (downloadState) {
+                                        HeaderDownloadState.Completed -> {
+                                            showRemoveDownloadDialog = true
                                         }
-                                    }
 
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .weight(1f)
-                                                .height(48.dp)
-                                                .yumaClickable(
-                                                    pressedScale = SettingsAnimations.PressScale,
-                                                    onClick = {
-                                                        playerConnection.playQueue(
-                                                            ListQueue(
-                                                                title = name,
-                                                                items = songs!!.map { it.toMediaItem() },
-                                                            ),
+                                        else -> {
+                                            sendAddMissingDownloads(
+                                                context = context,
+                                                songs =
+                                                    songs.orEmpty().map {
+                                                        HeaderDownloadItem(
+                                                            id = it.song.id,
+                                                            title = it.song.title,
                                                         )
                                                     },
-                                                )
-                                                .background(
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    shape = CircleShape,
-                                                )
-                                                .clip(CircleShape)
-                                                .semantics(mergeDescendants = true) {
-                                                    role = Role.Button
-                                                },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(horizontal = 8.dp),
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.play),
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = playLabel,
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
+                                                downloads = downloads,
                                             )
                                         }
                                     }
-
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .size(48.dp)
-                                                .yumaClickable(
-                                                    pressedScale = SettingsAnimations.PressScale,
-                                                    onClick = {
-                                                        playerConnection.playQueue(
-                                                            ListQueue(
-                                                                title = name,
-                                                                items = songs!!.shuffled().map { it.toMediaItem() },
-                                                            ),
-                                                        )
-                                                    },
-                                                )
-                                                .yumaGlassCard(
-                                                    shape = CircleShape,
-                                                    backgroundColor = LocalYumaColors.current.glassBackground,
-                                                )
-                                                .clip(CircleShape)
-                                                .semantics(mergeDescendants = true) {
-                                                    contentDescription = shuffleLabel
-                                                    role = Role.Button
-                                                },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.shuffle),
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
-                                        )
-                                    }
-
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .size(48.dp)
-                                                .yumaClickable(
-                                                    pressedScale = SettingsAnimations.PressScale,
-                                                    onClick = {
-                                                        playerConnection.addToQueue(
-                                                            items = songs!!.map { it.toMediaItem() },
-                                                        )
-                                                    },
-                                                )
-                                                .yumaGlassCard(
-                                                    shape = CircleShape,
-                                                    backgroundColor = LocalYumaColors.current.glassBackground,
-                                                )
-                                                .clip(CircleShape)
-                                                .semantics(mergeDescendants = true) {
-                                                    contentDescription = queueLabel
-                                                    role = Role.Button
-                                                },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.queue_music),
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(24.dp))
-                            }
+                                },
+                                onPlay = {
+                                    playerConnection.playQueue(
+                                        ListQueue(
+                                            title = name,
+                                            items = songs!!.map { it.toMediaItem() },
+                                        ),
+                                    )
+                                },
+                                onShuffle = {
+                                    playerConnection.playQueue(
+                                        ListQueue(
+                                            title = name,
+                                            items = songs!!.shuffled().map { it.toMediaItem() },
+                                        ),
+                                    )
+                                },
+                                onAddToQueue = {
+                                    playerConnection.addToQueue(
+                                        items = songs!!.map { it.toMediaItem() },
+                                    )
+                                },
+                            )
                         }
                     }
 
@@ -880,7 +478,7 @@ fun TopPlaylistScreen(
 
         HeaderHazeBackdrop(
             progress = headerProgress,
-            hasCollapsibleHeader = hasHeader,
+            hasCollapsibleHeader = hasArtworkBackdrop,
             hazeState = hazeState,
             modifier = Modifier.align(Alignment.TopCenter),
         )
@@ -1023,5 +621,280 @@ fun TopPlaylistScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun TopPlaylistHeroSection(
+    thumbnailUrl: String?,
+    name: String,
+    songsCount: Int,
+    likeLength: Int,
+    downloadState: HeaderDownloadState,
+    systemBarsTopPadding: Dp,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
+    onDownloadClick: () -> Unit,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    onAddToQueue: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hasArtwork = !thumbnailUrl.isNullOrBlank()
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (hasArtwork) {
+                    Modifier.heightIn(min = ImmersiveArtworkTokens.BackdropHeight)
+                } else {
+                    Modifier
+                },
+            ),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        if (hasArtwork) {
+            YumaImmersiveArtworkHeader(
+                thumbnailUrl = thumbnailUrl,
+                progress = headerProgress,
+                disableBlur = disableBlur,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    top = if (hasArtwork) systemBarsTopPadding + AppBarHeight else 16.dp,
+                    bottom = 16.dp,
+                ),
+            verticalArrangement = Arrangement.Bottom,
+        ) {
+            if (!hasArtwork) {
+                Surface(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.queue_music),
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = name,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 32.dp),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SettingsDimensions.ScreenHorizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MetadataChip(
+                    icon = R.drawable.music_note,
+                    text =
+                        pluralStringResource(
+                            R.plurals.n_song,
+                            songsCount,
+                            songsCount,
+                        ),
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+
+                if (likeLength > 0) {
+                    MetadataChip(
+                        icon = R.drawable.timer,
+                        text = makeTimeString(likeLength * 1000L),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            val downloadLabel = stringResource(R.string.download)
+            val playLabel = stringResource(R.string.play)
+            val shuffleLabel = stringResource(R.string.shuffle)
+            val queueLabel = stringResource(R.string.add_to_queue)
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = SettingsDimensions.ScreenHorizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(48.dp)
+                            .yumaClickable(
+                                pressedScale = SettingsAnimations.PressScale,
+                                onClick = onDownloadClick,
+                            )
+                            .yumaGlassCard(
+                                shape = CircleShape,
+                                backgroundColor = LocalYumaColors.current.glassBackground,
+                            )
+                            .clip(CircleShape)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = downloadLabel
+                                role = Role.Button
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (val state = downloadState) {
+                        HeaderDownloadState.Completed -> {
+                            Icon(
+                                painter = painterResource(R.drawable.offline),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
+                            )
+                        }
+
+                        is HeaderDownloadState.Partial -> {
+                            CircularProgressIndicator(
+                                progress = { state.progress },
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+
+                        else -> {
+                            Icon(
+                                painter = painterResource(R.drawable.download),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .yumaClickable(
+                                pressedScale = SettingsAnimations.PressScale,
+                                onClick = onPlay,
+                            )
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape,
+                            )
+                            .clip(CircleShape)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.play),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = playLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
+                Box(
+                    modifier =
+                        Modifier
+                            .size(48.dp)
+                            .yumaClickable(
+                                pressedScale = SettingsAnimations.PressScale,
+                                onClick = onShuffle,
+                            )
+                            .yumaGlassCard(
+                                shape = CircleShape,
+                                backgroundColor = LocalYumaColors.current.glassBackground,
+                            )
+                            .clip(CircleShape)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = shuffleLabel
+                                role = Role.Button
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.shuffle),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
+                    )
+                }
+
+                Box(
+                    modifier =
+                        Modifier
+                            .size(48.dp)
+                            .yumaClickable(
+                                pressedScale = SettingsAnimations.PressScale,
+                                onClick = onAddToQueue,
+                            )
+                            .yumaGlassCard(
+                                shape = CircleShape,
+                                backgroundColor = LocalYumaColors.current.glassBackground,
+                            )
+                            .clip(CircleShape)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = queueLabel
+                                role = Role.Button
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.queue_music),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(SettingsDimensions.RowIconInnerSize),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }

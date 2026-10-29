@@ -8,7 +8,6 @@ package moe.rukamori.archivetune.ui.screens
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,21 +19,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.media3.exoplayer.offline.Download
-import androidx.palette.graphics.Palette
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.size.Size
-import coil3.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.db.entities.AlbumWithSongs
 import moe.rukamori.archivetune.innertube.models.AlbumItem
 import moe.rukamori.archivetune.playback.DownloadUtil
-import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadState
 import moe.rukamori.archivetune.ui.utils.ItemWrapper
 import moe.rukamori.archivetune.ui.utils.headerDownloadState
@@ -140,65 +128,6 @@ fun rememberAlbumDownloadUiState(): AlbumDownloadUiState {
             dismissedState = dismissed,
         )
     }
-}
-@Composable
-fun AlbumCoverGradientEffect(
-    thumbnailUrl: String?,
-    context: Context,
-    fallbackColor: Int,
-    onColorsExtracted: (List<Color>) -> Unit,
-) {
-    LaunchedEffect(thumbnailUrl) {
-        if (thumbnailUrl != null) {
-            val request =
-                ImageRequest
-                    .Builder(context)
-                    .data(thumbnailUrl)
-                    .size(Size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE))
-                    .allowHardware(false)
-                    .build()
-
-            val result =
-                runCatching {
-                    context.imageLoader.execute(request)
-                }.getOrNull()
-
-            if (result != null) {
-                val bitmap = result.image?.toBitmap()
-                if (bitmap != null) {
-                    val palette =
-                        withContext(Dispatchers.Default) {
-                            Palette
-                                .from(bitmap)
-                                .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
-                                .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
-                                .generate()
-                        }
-
-                    val extractedColors =
-                        PlayerColorExtractor.extractGradientColors(
-                            palette = palette,
-                            fallbackColor = fallbackColor,
-                        )
-                    onColorsExtracted(extractedColors)
-                }
-            }
-        } else {
-            onColorsExtracted(emptyList())
-        }
-    }
-}
-@Composable
-fun rememberAlbumGradientColors(
-    thumbnailUrl: String?,
-    context: Context,
-    fallbackColor: Int = MaterialTheme.colorScheme.surface.toArgb(),
-): List<Color> {
-    var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
-    AlbumCoverGradientEffect(thumbnailUrl, context, fallbackColor) {
-        gradientColors = it
-    }
-    return gradientColors
 }
 @Composable
 fun AlbumDownloadSyncEffect(

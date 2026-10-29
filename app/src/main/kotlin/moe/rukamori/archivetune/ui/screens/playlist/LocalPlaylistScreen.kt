@@ -12,9 +12,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -37,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastSumBy
@@ -57,6 +58,7 @@ import moe.rukamori.archivetune.constants.PlaylistEditLockKey
 import moe.rukamori.archivetune.constants.SwipeToSongKey
 import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
@@ -116,12 +118,22 @@ fun LocalPlaylistScreen(
     val lazyListState = rememberLazyListState()
     val hazeState = remember { HazeState() }
     val hasHeader = headerItems > 0
+    val hasArtworkBackdrop = hasHeader && (playlist?.thumbnails?.isNotEmpty() == true)
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
-        hasCollapsibleHeader = hasHeader,
-        collapseDistance = systemBarsTopPadding + AppBarHeight + 240.dp,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
         standardThreshold = 48.dp,
     )
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
+
     var dragInfo by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val reorderableState =
         rememberLocalPlaylistReorderableState(
@@ -169,14 +181,6 @@ fun LocalPlaylistScreen(
         onResetDragInfo = { dragInfo = null },
     )
 
-    val (gradientColors, gradientAlpha) =
-        rememberLocalPlaylistGradientState(
-            thumbnails = playlist?.thumbnails,
-            context = context,
-            fallbackColor = MaterialTheme.colorScheme.surface.toArgb(),
-            lazyListState = lazyListState,
-        )
-
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = actions.onRefresh,
@@ -185,19 +189,9 @@ fun LocalPlaylistScreen(
                 .fillMaxSize()
                 .background(Color.Transparent),
     ) {
-        if (!searchState.isSearching) {
-            LocalPlaylistMeshGradient(
-                disableBlur = disableBlur,
-                gradientColors = gradientColors,
-                gradientAlpha = gradientAlpha,
-                surfaceColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-
         LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
+            contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             uiState.playlist?.let { currentPlaylist ->
@@ -207,10 +201,11 @@ fun LocalPlaylistScreen(
                     localPlaylistHeroItem(
                         playlist = currentPlaylist,
                         playlistLength = playlistLength,
-                        gradientColors = gradientColors,
                         systemBarsTopPadding = systemBarsTopPadding,
                         downloadState = downloadUiState.downloadState,
                         actions = actions,
+                        headerProgress = headerProgress,
+                        disableBlur = disableBlur,
                     )
 
                     localPlaylistSortHeaderItem(
@@ -269,7 +264,7 @@ fun LocalPlaylistScreen(
 
         HeaderHazeBackdrop(
             progress = headerProgress,
-            hasCollapsibleHeader = hasHeader,
+            hasCollapsibleHeader = hasArtworkBackdrop,
             hazeState = hazeState,
             modifier = Modifier.align(Alignment.TopCenter),
         )

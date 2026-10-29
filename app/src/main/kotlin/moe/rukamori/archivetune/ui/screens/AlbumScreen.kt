@@ -9,14 +9,15 @@ package moe.rukamori.archivetune.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -29,28 +30,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalDownloadUtil
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
-import moe.rukamori.archivetune.constants.AppBarHeight
+import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
-import moe.rukamori.archivetune.ui.component.rememberCollapseFraction
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeAlbumMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.AlbumViewModel
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,17 +73,14 @@ fun AlbumScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val otherVersions by viewModel.otherVersions.collectAsStateWithLifecycle()
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
+    val (disableBlur) = rememberPreference(DisableBlurKey, false)
 
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
-    val screenWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     val lazyListState = rememberLazyListState()
 
     val screenUiState = rememberAlbumUiState(albumWithSongs, uiState, otherVersions)
     val selectionState = rememberAlbumSelectionState(screenUiState.albumWithSongs, hideExplicit)
     val downloadUiState = rememberAlbumDownloadUiState()
-    val gradientColors = rememberAlbumGradientColors(screenUiState.albumWithSongs?.album?.thumbnailUrl, context)
-    val gradientAlpha by rememberAlbumGradientAlpha(lazyListState)
-    val collapseFraction by rememberCollapseFraction(lazyListState)
     val hazeState = remember { HazeState() }
 
     AlbumEffects(
@@ -103,6 +100,25 @@ fun AlbumScreen(
             context = context,
         )
 
+    val currentAlbumWithSongs = screenUiState.albumWithSongs
+    val hasHeader = currentAlbumWithSongs != null && currentAlbumWithSongs.songs.isNotEmpty()
+    val hasArtworkBackdrop = hasHeader && !currentAlbumWithSongs.album.thumbnailUrl.isNullOrBlank()
+
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
+        standardThreshold = 48.dp,
+    )
+
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.asPaddingValues()
+
     val showTopBarTitle by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 } }
 
     Box(
@@ -111,32 +127,20 @@ fun AlbumScreen(
                 .fillMaxSize()
                 .background(Color.Transparent),
     ) {
-        AlbumGradientBackground(
-            gradientColors = gradientColors,
-            gradientAlpha = gradientAlpha,
-            surfaceColor = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-
-        AlbumMorphingHeader(
-            thumbnailUrl = screenUiState.albumWithSongs?.album?.thumbnailUrl,
-            collapseFraction = collapseFraction,
-        )
-
         LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
-            val currentAlbumWithSongs = screenUiState.albumWithSongs
             if (currentAlbumWithSongs != null && currentAlbumWithSongs.songs.isNotEmpty()) {
                 albumHeaderSection(
                     albumWithSongs = currentAlbumWithSongs,
                     songCount = selectionState.wrappedSongs.size,
                     downloadState = downloadUiState.downloadState,
+                    systemBarsTopPadding = systemBarsTopPadding,
                     actions = actions,
-                    topPadding = systemBarsTopPadding + AppBarHeight,
-                    heroSpacerHeight = screenWidthDp * 0.55f,
+                    headerProgress = headerProgress,
+                    disableBlur = disableBlur,
                     onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                 )
 
@@ -178,15 +182,15 @@ fun AlbumScreen(
             } else {
                 albumStatePlaceholders(
                     uiState = screenUiState.uiState,
-                    topPadding = systemBarsTopPadding + AppBarHeight,
+                    topPadding = 16.dp,
                     onRetry = { viewModel.retry() },
                 )
             }
         }
 
         HeaderHazeBackdrop(
-            progress = { collapseFraction },
-            hasCollapsibleHeader = true,
+            progress = headerProgress,
+            hasCollapsibleHeader = hasArtworkBackdrop,
             hazeState = hazeState,
             modifier = Modifier.align(Alignment.TopCenter),
         )

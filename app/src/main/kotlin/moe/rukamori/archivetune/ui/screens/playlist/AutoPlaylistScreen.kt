@@ -9,9 +9,13 @@ package moe.rukamori.archivetune.ui.screens.playlist
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,12 +49,12 @@ import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.YtmSyncKey
 import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.playback.queues.ListQueue
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
 import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
 import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
-import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistGradientBackground
 import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistHeader
 import moe.rukamori.archivetune.ui.screens.playlist.auto.AutoPlaylistRemoveDownloadDialog
 import moe.rukamori.archivetune.ui.screens.playlist.auto.autoPlaylistEmptyState
@@ -58,7 +62,6 @@ import moe.rukamori.archivetune.ui.screens.playlist.auto.autoPlaylistRuleCards
 import moe.rukamori.archivetune.ui.screens.playlist.auto.autoPlaylistTrackRows
 import moe.rukamori.archivetune.ui.screens.playlist.auto.playlistScrollbar
 import moe.rukamori.archivetune.ui.screens.playlist.auto.rememberAutoPlaylistDownloadState
-import moe.rukamori.archivetune.ui.screens.playlist.auto.rememberAutoPlaylistGradientColors
 import moe.rukamori.archivetune.ui.screens.playlist.auto.rememberAutoPlaylistSearchState
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadItem
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadState
@@ -150,9 +153,6 @@ fun AutoPlaylistScreen(
     val hazeState = remember { HazeState() }
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
 
-    val gradientColors = rememberAutoPlaylistGradientColors(songs)
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
     val showTopBarTitle by remember {
         derivedStateOf {
             lazyListState.firstVisibleItemIndex > 0
@@ -165,12 +165,22 @@ fun AutoPlaylistScreen(
         }
     }
     val hasHeader = headerItems > 0
+    val firstSongThumbnail = songs.firstOrNull()?.song?.thumbnailUrl
+    val hasArtworkBackdrop = hasHeader && !firstSongThumbnail.isNullOrBlank()
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
-        hasCollapsibleHeader = hasHeader,
-        collapseDistance = systemBarsTopPadding + 48.dp + 240.dp,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
         standardThreshold = 48.dp,
     )
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
 
     Box(
         modifier =
@@ -178,16 +188,9 @@ fun AutoPlaylistScreen(
                 .fillMaxSize()
                 .background(Color.Transparent),
     ) {
-        AutoPlaylistGradientBackground(
-            lazyListState = lazyListState,
-            gradientColors = gradientColors,
-            surfaceColor = surfaceColor,
-            disableBlur = disableBlur,
-        )
-
         LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+            contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (!searchState.isSearching) {
@@ -220,6 +223,8 @@ fun AutoPlaylistScreen(
                             navController.navigate("auto_playlist/downloaded?tab=progress")
                         },
                         playerConnection = playerConnection,
+                        headerProgress = headerProgress,
+                        disableBlur = disableBlur,
                         systemBarsTopPadding = systemBarsTopPadding,
                         likeLength = likeLength,
                     )
@@ -261,7 +266,7 @@ fun AutoPlaylistScreen(
 
         HeaderHazeBackdrop(
             progress = headerProgress,
-            hasCollapsibleHeader = hasHeader,
+            hasCollapsibleHeader = hasArtworkBackdrop,
             hazeState = hazeState,
             modifier = Modifier.align(Alignment.TopCenter),
         )
