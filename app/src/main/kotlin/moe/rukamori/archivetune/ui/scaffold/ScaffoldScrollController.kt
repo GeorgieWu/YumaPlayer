@@ -1,8 +1,10 @@
 package moe.rukamori.archivetune.ui.scaffold
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -10,6 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import moe.rukamori.archivetune.ui.component.BottomSheetState
 import moe.rukamori.archivetune.ui.screens.Screens
@@ -18,32 +23,66 @@ import moe.rukamori.archivetune.ui.utils.appBarScrollBehavior
 import moe.rukamori.archivetune.ui.utils.resetHeightOffset
 
 @Stable
-interface HomeScrollConnection : NestedScrollConnection {
-    var isHeroPresent: Boolean
-    var heroScrollProgress: () -> Float
+internal interface HeaderScrollConnection : NestedScrollConnection {
+    var hasCollapsibleHeader: Boolean
+    var scrollProgress: () -> Float
+    val isBound: Boolean
+
+    fun bind(owner: Any, hasCollapsibleHeader: Boolean, scrollProgress: () -> Float)
+    fun unbind(owner: Any)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Stable
-class HomeAppBarScrollBehavior(
+internal class HeaderAppBarScrollBehavior(
     private val delegate: TopAppBarScrollBehavior,
 ) : TopAppBarScrollBehavior by delegate {
-    var isHeroPresent by mutableStateOf(false)
-    var heroScrollProgress by mutableStateOf<() -> Float>({ 0f })
+    var hasCollapsibleHeader by mutableStateOf(false)
+    var scrollProgress by mutableStateOf<() -> Float>({ 0f })
+    var isBound by mutableStateOf(false)
+    private var activeOwner: Any? = null
+
+    fun bind(owner: Any, hasCollapsibleHeader: Boolean, progress: () -> Float) {
+        activeOwner = owner
+        this.hasCollapsibleHeader = hasCollapsibleHeader
+        this.scrollProgress = progress
+        this.isBound = true
+    }
+
+    fun unbind(owner: Any) {
+        if (activeOwner === owner) {
+            activeOwner = null
+            this.hasCollapsibleHeader = false
+            this.scrollProgress = { 0f }
+            this.isBound = false
+        }
+    }
 
     override val nestedScrollConnection: NestedScrollConnection =
-        object : HomeScrollConnection, NestedScrollConnection by delegate.nestedScrollConnection {
-            override var isHeroPresent: Boolean
-                get() = this@HomeAppBarScrollBehavior.isHeroPresent
+        object : HeaderScrollConnection, NestedScrollConnection by delegate.nestedScrollConnection {
+            override var hasCollapsibleHeader: Boolean
+                get() = this@HeaderAppBarScrollBehavior.hasCollapsibleHeader
                 set(value) {
-                    this@HomeAppBarScrollBehavior.isHeroPresent = value
+                    this@HeaderAppBarScrollBehavior.hasCollapsibleHeader = value
                 }
 
-            override var heroScrollProgress: () -> Float
-                get() = this@HomeAppBarScrollBehavior.heroScrollProgress
+            override var scrollProgress: () -> Float
+                get() = this@HeaderAppBarScrollBehavior.scrollProgress
                 set(value) {
-                    this@HomeAppBarScrollBehavior.heroScrollProgress = value
+                    this@HeaderAppBarScrollBehavior.scrollProgress = value
+                    this@HeaderAppBarScrollBehavior.isBound = true
                 }
+
+            override val isBound: Boolean
+                get() = this@HeaderAppBarScrollBehavior.isBound
+
+            override fun bind(owner: Any, hasCollapsibleHeader: Boolean, scrollProgress: () -> Float) {
+                this@HeaderAppBarScrollBehavior.bind(owner, hasCollapsibleHeader, scrollProgress)
+            }
+
+            override fun unbind(owner: Any) {
+                this@HeaderAppBarScrollBehavior.unbind(owner)
+            }
         }
 }
 
@@ -87,9 +126,9 @@ fun rememberScaffoldScrollController(
             },
         )
     val homeScrollBehavior = remember(rawHomeScrollBehavior) {
-        HomeAppBarScrollBehavior(rawHomeScrollBehavior)
+        HeaderAppBarScrollBehavior(rawHomeScrollBehavior)
     }
-    val searchScrollBehavior =
+    val rawSearchScrollBehavior =
         appBarScrollBehavior(
             canScroll = {
                 navBackStackEntry?.destination?.route?.startsWith(OnlineSearchResultRoutePrefix) == false &&
@@ -97,7 +136,10 @@ fun rememberScaffoldScrollController(
                     (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
             },
         )
-    val topAppBarScrollBehavior =
+    val searchScrollBehavior = remember(rawSearchScrollBehavior) {
+        HeaderAppBarScrollBehavior(rawSearchScrollBehavior)
+    }
+    val rawTopAppBarScrollBehavior =
         appBarScrollBehavior(
             canScroll = {
                 navBackStackEntry?.destination?.route?.startsWith(OnlineSearchResultRoutePrefix) == false &&
@@ -105,6 +147,9 @@ fun rememberScaffoldScrollController(
                     (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
             },
         )
+    val topAppBarScrollBehavior = remember(rawTopAppBarScrollBehavior) {
+        HeaderAppBarScrollBehavior(rawTopAppBarScrollBehavior)
+    }
 
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -158,4 +203,45 @@ fun rememberScaffoldScrollController(
             topAppBarScrollBehavior = topAppBarScrollBehavior,
         )
     }
+}
+
+@Composable
+internal fun BindHeaderScroll(
+    connection: NestedScrollConnection?,
+    lazyListState: LazyListState,
+    hasCollapsibleHeader: Boolean,
+    collapseDistance: Dp = 360.dp,
+    standardThreshold: Dp = 48.dp,
+): () -> Float {
+    val density = LocalDensity.current
+    val targetThresholdPx = with(density) {
+        val targetDp = if (hasCollapsibleHeader) collapseDistance else standardThreshold
+        targetDp.toPx().coerceAtLeast(1f)
+    }
+
+    val progressProvider: () -> Float = remember(lazyListState, targetThresholdPx) {
+        {
+            if (lazyListState.firstVisibleItemIndex > 0) {
+                1f
+            } else {
+                (lazyListState.firstVisibleItemScrollOffset / targetThresholdPx).coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    val headerConnection = connection as? HeaderScrollConnection
+    val registrationToken = remember { Any() }
+
+    DisposableEffect(headerConnection, hasCollapsibleHeader, progressProvider) {
+        headerConnection?.bind(
+            owner = registrationToken,
+            hasCollapsibleHeader = hasCollapsibleHeader,
+            scrollProgress = progressProvider,
+        )
+        onDispose {
+            headerConnection?.unbind(registrationToken)
+        }
+    }
+
+    return progressProvider
 }

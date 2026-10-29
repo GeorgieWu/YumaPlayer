@@ -20,12 +20,10 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,7 +38,7 @@ import moe.rukamori.archivetune.playback.PlayerConnection
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.carousel.LocalHeroScrollProgress
-import moe.rukamori.archivetune.ui.scaffold.HomeScrollConnection
+import moe.rukamori.archivetune.ui.scaffold.BindHeaderScroll
 import moe.rukamori.archivetune.ui.screens.HomeSectionHeader
 import moe.rukamori.archivetune.ui.screens.QuickPicksSection
 import moe.rukamori.archivetune.ui.screens.SpeedDialSection
@@ -99,45 +97,15 @@ internal fun HomeContent(
                 val isFilterActive = uiState.selectedChip != null
                 val insetsPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
                 val isHeroMode = uiState.quickPicksDisplayMode == moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO
-
-                val density = LocalDensity.current
-                val collapseDistancePx = with(density) { 360.dp.toPx() }
-
-                val heroScrollProgress: () -> Float = remember(lazyListState, collapseDistancePx) {
-                    {
-                        if (lazyListState.firstVisibleItemIndex > 0) {
-                            1f
-                        } else {
-                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / collapseDistancePx).coerceIn(0f, 1f)
-                        }
-                    }
-                }
-
                 val isHeroPresent = isHeroMode && !isFilterActive && uiState.quickPicks.isNotEmpty()
 
-                val nonHeroScrollProgress: () -> Float = remember(lazyListState) {
-                    {
-                        if (lazyListState.firstVisibleItemIndex > 0) {
-                            1f
-                        } else {
-                            (lazyListState.firstVisibleItemScrollOffset.toFloat() / with(density) { 40.dp.toPx() }).coerceIn(0f, 1f)
-                        }
-                    }
-                }
-
-                val homeScrollConnection = headerScrollConnection as? HomeScrollConnection
-                DisposableEffect(homeScrollConnection, isHeroPresent, heroScrollProgress, nonHeroScrollProgress) {
-                    homeScrollConnection?.let {
-                        it.isHeroPresent = isHeroPresent
-                        it.heroScrollProgress = if (isHeroPresent) heroScrollProgress else nonHeroScrollProgress
-                    }
-                    onDispose {
-                        homeScrollConnection?.let {
-                            it.isHeroPresent = false
-                            it.heroScrollProgress = { 0f }
-                        }
-                    }
-                }
+                val headerScrollProgress = BindHeaderScroll(
+                    connection = headerScrollConnection,
+                    lazyListState = lazyListState,
+                    hasCollapsibleHeader = isHeroPresent,
+                    collapseDistance = 360.dp,
+                    standardThreshold = 48.dp,
+                )
 
                 LazyColumn(
                     state = lazyListState,
@@ -164,7 +132,7 @@ internal fun HomeContent(
                             key = "home_quick_picks",
                             contentType = "quick_picks",
                         ) {
-                            CompositionLocalProvider(LocalHeroScrollProgress provides heroScrollProgress) {
+                            CompositionLocalProvider(LocalHeroScrollProgress provides headerScrollProgress) {
                                 QuickPicksSection(
                                     quickPicks = uiState.quickPicks,
                                     mediaMetadata = mediaMetadata,

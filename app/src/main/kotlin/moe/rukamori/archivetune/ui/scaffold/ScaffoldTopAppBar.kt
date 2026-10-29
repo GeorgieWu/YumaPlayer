@@ -62,7 +62,6 @@ import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
-import moe.rukamori.archivetune.ui.component.carousel.smoothstep
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.state.UpdateState
@@ -103,7 +102,7 @@ fun ScaffoldTopAppBar(
     val (disableBlur) = rememberPreference(DisableBlurKey, false)
     val animationsDisabled = LocalAnimationsDisabled.current
 
-    val isHomeTopBlurActive = isHomeRoute &&
+    val isTopBlurActive = shouldUseFloatingTopBar &&
             blurNavBar &&
             !disableBlur &&
             !animationsDisabled &&
@@ -132,7 +131,7 @@ fun ScaffoldTopAppBar(
         if (shouldUseFloatingTopBar) {
             val appBarHeightPx = with(LocalDensity.current) { AppBarHeight.toPx() }
             val statusBarTop = with(LocalDensity.current) { WindowInsets.systemBars.getTop(this).toDp() }
-            val hazeStyle = if (isHomeTopBlurActive) {
+            val hazeStyle = if (isTopBlurActive) {
                 remember(surfaceColor, blurRadius, pureBlack) {
                     val fixedTintAlpha = if (pureBlack) SettingsDimensions.HazePureBlackTintAlpha else SettingsDimensions.HazeDefaultTintAlpha
                     val tintEffect = HazeColorEffect.tint(surfaceColor.copy(alpha = fixedTintAlpha))
@@ -167,13 +166,13 @@ fun ScaffoldTopAppBar(
                     .fillMaxWidth()
                     .height(AppBarHeight + statusBarTop)
                     .then(
-                        if (isHomeTopBlurActive && hazeStyle != null) {
-                            val homeScrollConnection = currentScrollBehavior.nestedScrollConnection as? HomeScrollConnection
+                        if (isTopBlurActive && hazeStyle != null) {
+                            val headerScrollConnection = currentScrollBehavior.nestedScrollConnection as? HeaderScrollConnection
                             Modifier
                                 .graphicsLayer {
-                                    if (homeScrollConnection != null) {
-                                        val p = homeScrollConnection.heroScrollProgress()
-                                        alpha = if (homeScrollConnection.isHeroPresent) {
+                                    if (headerScrollConnection != null && headerScrollConnection.isBound) {
+                                        val p = headerScrollConnection.scrollProgress()
+                                        alpha = if (headerScrollConnection.hasCollapsibleHeader) {
                                             smoothstep(0.70f, 0.95f, p)
                                         } else {
                                             p
@@ -305,4 +304,9 @@ private fun getGreetingText(): String {
         in 18..23 -> stringResource(R.string.good_evening)
         else -> stringResource(R.string.good_night)
     }
+}
+
+private fun smoothstep(from: Float, to: Float, x: Float): Float {
+    val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
 }
