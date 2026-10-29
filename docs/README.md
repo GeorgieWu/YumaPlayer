@@ -42,6 +42,7 @@ Development rules, standards, step-by-step guides, and agent guidelines.
 - **YUMA_RULES.md** — Non-negotiable project constitution and strict constraints.
 - **CODING_STANDARD.md** — Code style, ViewModel conventions, Mappers, and Coroutine safety.
 - **DEVELOPMENT_GUIDE.md** — Step-by-step recipes (adding screens, lyrics providers, new modules).
+- **[FORK_CI.md](./development/FORK_CI.md)** — Build and publish the fork's signed GMS arm64 APK.
 
 ### 3. 🎨 [Design](./design/)
 UI design system, tokens, and component guidelines.
