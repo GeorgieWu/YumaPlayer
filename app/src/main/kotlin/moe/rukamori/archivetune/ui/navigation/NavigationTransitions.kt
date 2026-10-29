@@ -16,6 +16,8 @@ import androidx.navigation.NavBackStackEntry
 
 internal object NavigationTransitions {
     private const val StackingDurationMs = 350
+    private const val OutgoingFadeMs = 150
+    private const val PopExitFadeMs = 200
     private const val TopLevelFadeInDurationMs = 250
     private const val TopLevelFadeOutDurationMs = 200
 
@@ -31,15 +33,20 @@ internal object NavigationTransitions {
         slideInHorizontally(
             animationSpec = tween(StackingDurationMs, easing = StackingEasing),
             initialOffsetX = { it / 3 },
+        ) + fadeIn(
+            animationSpec = tween(StackingDurationMs / 2),
         )
 
     private val StackExit: ExitTransition =
         slideOutHorizontally(
-            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
             targetOffsetX = { -it / 3 },
-        ) + scaleOut(
             animationSpec = tween(StackingDurationMs, easing = StackingEasing),
+        ) + scaleOut(
             targetScale = 0.92f,
+            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
+        ) + fadeOut(
+            animationSpec = tween(OutgoingFadeMs),
+            targetAlpha = 0f,
         )
 
     private val StackPopEnter: EnterTransition =
@@ -47,17 +54,21 @@ internal object NavigationTransitions {
             animationSpec = tween(StackingDurationMs, easing = StackingEasing),
             initialOffsetX = { -it / 3 },
         ) + scaleIn(
-            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
             initialScale = 0.92f,
+            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
+        ) + fadeIn(
+            animationSpec = tween(StackingDurationMs),
         )
 
     private val StackPopExit: ExitTransition =
         slideOutHorizontally(
-            animationSpec = tween(StackingDurationMs, easing = PopExitSlideEasing),
             targetOffsetX = { it },
+            animationSpec = tween(StackingDurationMs, easing = PopExitSlideEasing),
         ) + scaleOut(
-            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
             targetScale = 0.85f,
+            animationSpec = tween(StackingDurationMs, easing = StackingEasing),
+        ) + fadeOut(
+            animationSpec = tween(PopExitFadeMs),
         )
 
     private fun isTopLevelTransition(
