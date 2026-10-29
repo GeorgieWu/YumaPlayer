@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 internal object ImmersiveArtworkTokens {
-    val BackdropHeight: Dp = 380.dp
+    val BackdropHeight: Dp = 520.dp
 
     const val ScrollCoverFollow = 0.20f
     const val ScrollCoverZoom = 0.22f
