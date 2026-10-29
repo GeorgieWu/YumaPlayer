@@ -32,7 +32,6 @@ fun YumaImmersiveArtworkHeader(
     val animationsDisabled = LocalAnimationsDisabled.current
     val isBlurActive = !disableBlur && !animationsDisabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val animatedSurfaceColor = LocalArtworkSurfaceColor.current
-    val currentColor = animatedSurfaceColor?.value ?: surfaceColor
 
     Box(
         modifier = modifier
@@ -64,12 +63,13 @@ fun YumaImmersiveArtworkHeader(
             modifier = Modifier
                 .matchParentSize()
                 .drawWithCache {
+                    val color = animatedSurfaceColor?.value ?: surfaceColor
                     val bottomScrim = Brush.verticalGradient(
                         0f to Color.Transparent,
                         0.40f to Color.Transparent,
-                        0.70f to currentColor.copy(alpha = 0.55f),
-                        0.88f to currentColor.copy(alpha = 0.90f),
-                        1.0f to currentColor,
+                        0.70f to color.copy(alpha = 0.55f),
+                        0.88f to color.copy(alpha = 0.90f),
+                        1.0f to color,
                         startY = 0f,
                         endY = size.height,
                     )

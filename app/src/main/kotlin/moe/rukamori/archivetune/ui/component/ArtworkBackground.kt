@@ -20,7 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.graphics.ColorUtils
 import coil3.imageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
@@ -32,8 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.ui.theme.extractSeedColor
-import moe.rukamori.archivetune.ui.theme.generateDarkColorSchemeFromSeed
-import moe.rukamori.archivetune.ui.theme.generateLightColorSchemeFromSeed
 import moe.rukamori.archivetune.utils.reportException
 
 val LocalArtworkSurfaceColor = compositionLocalOf<State<Color>?> { null }
@@ -50,6 +50,20 @@ data class ArtworkBackgroundState(
 
 private val artworkSurfaceCache = LruCache<String, Color>(64)
 
+private fun deriveMutedBackgroundColor(seedColor: Color, isDarkTheme: Boolean): Color {
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(seedColor.toArgb(), hsl)
+    return if (isDarkTheme) {
+        hsl[1] = (hsl[1] * 0.9f).coerceAtMost(0.62f)
+        hsl[2] = (hsl[2] * 0.5f).coerceIn(0.09f, 0.30f)
+        Color(ColorUtils.HSLToColor(hsl))
+    } else {
+        hsl[1] = (hsl[1] * 0.45f).coerceAtMost(0.35f)
+        hsl[2] = (0.90f + hsl[2] * 0.08f).coerceIn(0.90f, 0.96f)
+        Color(ColorUtils.HSLToColor(hsl))
+    }
+}
+
 @Composable
 fun rememberArtworkBackground(
     artworkModel: Any?,
@@ -62,7 +76,7 @@ fun rememberArtworkBackground(
 
     val cacheKey = remember(artworkModel, isDarkTheme) {
         if (artworkModel != null) {
-            "surface_v2_${if (isDarkTheme) "d" else "l"}:$artworkModel"
+            "muted_v1_${if (isDarkTheme) "d" else "l"}:$artworkModel"
         } else {
             null
         }
@@ -103,18 +117,13 @@ fun rememberArtworkBackground(
                     val seedColor = withContext(Dispatchers.Default) {
                         extractSeedColor(result.image.toBitmap())
                     }
-                    val scheme = withContext(Dispatchers.Default) {
-                        if (isDarkTheme) {
-                            generateDarkColorSchemeFromSeed(seedColor)
-                        } else {
-                            generateLightColorSchemeFromSeed(seedColor)
-                        }
+                    val mutedColor = withContext(Dispatchers.Default) {
+                        deriveMutedBackgroundColor(seedColor, isDarkTheme)
                     }
-                    val surface = scheme.surface
                     if (cacheKey != null) {
-                        artworkSurfaceCache.put(cacheKey, surface)
+                        artworkSurfaceCache.put(cacheKey, mutedColor)
                     }
-                    targetSurface = surface
+                    targetSurface = mutedColor
                 }
                 is ErrorResult -> {
                     reportException(result.throwable)
@@ -129,11 +138,9 @@ fun rememberArtworkBackground(
         }
     }
 
-    val isFirstExtraction = initialColor == defaultSurface && targetSurface != defaultSurface
-
     val animatedColor = animateColorAsState(
-        targetValue = if (enabled) targetSurface else Color.Transparent,
-        animationSpec = if (animationsDisabled || isFirstExtraction) {
+        targetValue = if (enabled) targetSurface else defaultSurface,
+        animationSpec = if (animationsDisabled) {
             snap()
         } else {
             tween(durationMillis = 400, easing = FastOutSlowInEasing)
