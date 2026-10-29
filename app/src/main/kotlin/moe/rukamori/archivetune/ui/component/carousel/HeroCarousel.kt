@@ -10,14 +10,16 @@ import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,8 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -36,6 +39,7 @@ import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.utils.rememberPreference
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 internal fun HeroCarousel(
@@ -95,8 +99,7 @@ internal fun HeroCarousel(
                 val currentItem = displayItems[pagerState.currentPage.mod(displayItems.size)]
                 val onRoll = currentItem is HeroDisplayItem.RollCard
                 if (onRoll && rollState.phase != HeroRollPhase.Idle) return@LaunchedEffect
-                delay(if (onRoll) HeroCarouselTokens.HeroRollIdleAdvanceMillis else HeroCarouselTokens.HeroAdvanceMillis)
-                if (!isCarouselActive) continue
+                delay((if (onRoll) HeroCarouselTokens.HeroRollIdleAdvanceMillis else HeroCarouselTokens.HeroAdvanceMillis).milliseconds)
                 pagerState.animateScrollToPage(
                     page = pagerState.currentPage + 1,
                     animationSpec = tween(
@@ -127,8 +130,7 @@ internal fun HeroCarousel(
             },
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            val displayItem = displayItems[page.mod(displayItems.size)]
-            when (displayItem) {
+            when (val displayItem = displayItems[page.mod(displayItems.size)]) {
                 is HeroDisplayItem.RollCard -> {
                     HeroRollCard(
                         state = rollState,
@@ -159,16 +161,35 @@ internal fun HeroCarousel(
             }
         }
 
-        HeroCarouselIndicator(
-            pageCount = displayItems.size,
-            currentPage = pagerState.currentPage,
-            animationsDisabled = animationsDisabled,
+        Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 14.dp),
+                .fillMaxWidth()
+                .fillMaxHeight(HeroCarouselTokens.TopShadeEnd)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to MaterialTheme.colorScheme.surface,
+                        1.0f to Color.Transparent,
+                    )
+                )
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(1f - HeroCarouselTokens.BottomShadeStart)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to Color.Transparent,
+                        1.0f to MaterialTheme.colorScheme.surface,
+                    )
+                )
         )
     }
 }
+
+
 
 private fun PagerState.offsetOf(page: Int): Float =
     (page - currentPage) - currentPageOffsetFraction

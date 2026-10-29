@@ -21,4 +21,10 @@ object HomeLayoutConfig {
         availableWidth >= 600.dp -> 345.dp
         else -> 310.dp
     }
+
+    fun heroCarouselHeight(availableWidth: Dp): Dp = when {
+        availableWidth >= 840.dp -> 500.dp
+        availableWidth >= 600.dp -> 450.dp
+        else -> 560.dp
+    }
 }

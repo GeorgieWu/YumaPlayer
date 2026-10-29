@@ -110,8 +110,18 @@ internal fun HeroMediaCard(
             }
 
             if (edgeBlur) {
-                HeroBlurBand(mediaLayer = mediaLayer, atTop = true, heightFraction = 0.46f, radius = 22f)
-                HeroBlurBand(mediaLayer = mediaLayer, atTop = false, heightFraction = 0.50f, radius = 30f)
+                HeroBlurBand(
+                    mediaLayer = mediaLayer,
+                    atTop = true,
+                    heightFraction = HeroCarouselTokens.TopBlurHeightFraction,
+                    radius = HeroCarouselTokens.TopBlurRadius,
+                )
+                HeroBlurBand(
+                    mediaLayer = mediaLayer,
+                    atTop = false,
+                    heightFraction = HeroCarouselTokens.BottomBlurHeightFraction,
+                    radius = HeroCarouselTokens.BottomBlurRadius,
+                )
             }
 
             HeroScrims()
@@ -233,9 +243,9 @@ private fun BoxScope.HeroScrims() {
         modifier = Modifier
             .matchParentSize()
             .drawWithCache {
-                val topEnd = 0.463f
-                val bottomStart = 0.533f
-                val bottomEnd = 0.989f
+                val topEnd = HeroCarouselTokens.ScrimTopEnd
+                val bottomStart = HeroCarouselTokens.ScrimBottomStart
+                val bottomEnd = HeroCarouselTokens.ScrimBottomEnd
                 val scrim = Brush.verticalGradient(
                     0f to heroScrimBlack(0.86f),
                     0.475f * topEnd to heroScrimBlack(0.59f),

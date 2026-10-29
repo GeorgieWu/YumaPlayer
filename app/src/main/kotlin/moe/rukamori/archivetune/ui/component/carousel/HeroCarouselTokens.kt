@@ -37,10 +37,10 @@ internal object HeroCarouselTokens {
     const val GachaCenterY = 230.5f
     const val GachaOverhang = 28f
     const val GachaCornerRadius = 25f
-    const val GachaPointerX = 120f
+    const val GachaPointerX = 144f
     const val GachaPointerY = 236f
-    const val GachaPointerWidth = 68f
-    const val GachaPointerHeight = 75f
+    const val GachaPointerWidth = 88.4f
+    const val GachaPointerHeight = 97.5f
 
     const val GachaCandidates = 10
     const val GachaMinPool = 4
@@ -51,10 +51,19 @@ internal object HeroCarouselTokens {
     const val IdleStepSeconds = 1f / 30f
     const val IdleWakeMillis = 28L
 
-    const val TopShadeEnd = 0.44f
-    const val BottomShadeStart = 0.56f
+    const val TopShadeEnd = 0f
+    const val BottomShadeStart = 0.85f
 
     val MinTouchTarget = 48.dp
+
+    const val TopBlurHeightFraction = 0.39f
+    const val TopBlurRadius = 18.7f
+    const val BottomBlurHeightFraction = 0.50f
+    const val BottomBlurRadius = 30f
+
+    const val ScrimTopEnd = 0.39f
+    const val ScrimBottomStart = 0.533f
+    const val ScrimBottomEnd = 0.989f
 
     val ArtOverlayTextPrimary = Color(0xFFFFFFFF)
     val ArtOverlayTextSecondary = Color(0xD1FFFFFF)

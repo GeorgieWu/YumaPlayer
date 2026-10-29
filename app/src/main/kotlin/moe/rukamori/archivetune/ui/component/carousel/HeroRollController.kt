@@ -87,6 +87,7 @@ internal class HeroRollController(
             val winner = state.candidates.random()
             state.result = winner
             state.phase = HeroRollPhase.Landed
+            state.completionToken++
             haptics.confirm()
             return
         }
@@ -117,6 +118,7 @@ internal class HeroRollController(
                 val won = candidateList[winnerIndex]
                 state.result = won
                 state.phase = HeroRollPhase.Landed
+                state.completionToken++
                 haptics.confirm()
 
                 launch {

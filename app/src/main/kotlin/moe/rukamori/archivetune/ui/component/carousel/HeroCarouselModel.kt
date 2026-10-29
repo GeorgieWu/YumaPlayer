@@ -11,6 +11,7 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -55,6 +56,7 @@ class HeroRollState {
     var candidates by mutableStateOf<List<HeroItem>>(emptyList())
     var phase by mutableStateOf(HeroRollPhase.Idle)
     var result by mutableStateOf<HeroItem?>(null)
+    var completionToken by mutableLongStateOf(0L)
 
     val reel: Animatable<Float, AnimationVector1D> = Animatable(0f)
     val pointerKick: Animatable<Float, AnimationVector1D> = Animatable(0f)

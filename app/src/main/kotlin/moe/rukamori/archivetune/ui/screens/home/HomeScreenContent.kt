@@ -95,19 +95,29 @@ internal fun HomeContent(
 
                 val isFilterActive = uiState.selectedChip != null
 
+                val insetsPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+                val isHeroMode = uiState.quickPicksDisplayMode == moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO
+
                 LazyColumn(
                     state = lazyListState,
-                    contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = insetsPadding.calculateLeftPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+                        top = if (isHeroMode) 0.dp else insetsPadding.calculateTopPadding(),
+                        end = insetsPadding.calculateRightPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+                        bottom = insetsPadding.calculateBottomPadding(),
+                    ),
                     modifier =
                         Modifier
                             .widthIn(max = HomeFeedMaxWidth)
                             .fillMaxWidth()
                             .align(Alignment.TopCenter),
                 ) {
-                    homeCategoryChipsSection(
-                        uiState = uiState,
-                        onAction = onAction,
-                    )
+                    if (uiState.quickPicksDisplayMode != moe.rukamori.archivetune.constants.QuickPicksDisplayMode.HERO) {
+                        homeCategoryChipsSection(
+                            uiState = uiState,
+                            onAction = onAction,
+                        )
+                    }
 
                     if (!isFilterActive && uiState.quickPicks.isNotEmpty()) {
                         item(

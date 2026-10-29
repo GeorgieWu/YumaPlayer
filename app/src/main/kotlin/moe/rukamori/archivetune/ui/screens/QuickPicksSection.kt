@@ -55,42 +55,44 @@ fun QuickPicksSection(
     val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = stringResource(R.string.quick_picks),
-                style = MaterialTheme.typography.titleLargeEmphasized,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = 12.dp),
-            )
-            FilledTonalButton(
-                onClick = {
-                    if (distinctQuickPicks.isNotEmpty()) {
-                        playerConnection.playQueue(
-                            ListQueue(
-                                title = context.getString(R.string.quick_picks),
-                                items = distinctQuickPicks.map { it.toMediaItem() },
-                            ),
-                        )
-                    }
-                },
+        if (displayMode != QuickPicksDisplayMode.HERO) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.play),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                Text(
+                    text = stringResource(R.string.quick_picks),
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = stringResource(R.string.play_all))
+                FilledTonalButton(
+                    onClick = {
+                        if (distinctQuickPicks.isNotEmpty()) {
+                            playerConnection.playQueue(
+                                ListQueue(
+                                    title = context.getString(R.string.quick_picks),
+                                    items = distinctQuickPicks.map { it.toMediaItem() },
+                                ),
+                            )
+                        }
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.play),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = stringResource(R.string.play_all))
+                }
             }
         }
 

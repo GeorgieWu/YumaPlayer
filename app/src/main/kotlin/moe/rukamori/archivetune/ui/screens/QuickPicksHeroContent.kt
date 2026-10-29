@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -38,6 +41,7 @@ import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.carousel.HeroCarousel
 import moe.rukamori.archivetune.ui.component.carousel.HeroItem
 import moe.rukamori.archivetune.ui.component.carousel.HeroRollEffects
+import moe.rukamori.archivetune.ui.component.carousel.HeroRollPhase
 import moe.rukamori.archivetune.ui.component.carousel.rememberHeroRollController
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.menu.SongMenu
@@ -100,10 +104,14 @@ internal fun QuickPicksHeroContent(
         animationsDisabled = animationsDisabled,
     )
 
-    fun playTrack(id: String) {
+    fun playTrack(id: String, toggleIfCurrent: Boolean = true) {
         val song = songMap[id] ?: return
         if (id == mediaMetadata?.id) {
-            playerConnection.player.togglePlayPause()
+            if (toggleIfCurrent) {
+                playerConnection.player.togglePlayPause()
+            } else if (!playerConnection.player.playWhenReady) {
+                playerConnection.player.play()
+            }
         } else {
             playerConnection.playQueue(
                 if (song.song.isLocal) {
@@ -113,6 +121,22 @@ internal fun QuickPicksHeroContent(
                 }
             )
         }
+    }
+
+    val currentPlayTrack by rememberUpdatedState(::playTrack)
+
+    LaunchedEffect(rollController) {
+        var lastHandledToken = rollController.state.completionToken
+        snapshotFlow { rollController.state.completionToken }
+            .collect { token ->
+                if (token > lastHandledToken) {
+                    lastHandledToken = token
+                    val winner = rollController.state.result
+                    if (rollController.state.phase == HeroRollPhase.Landed && winner != null) {
+                        currentPlayTrack(winner.id, false)
+                    }
+                }
+            }
     }
 
     fun showTrackMenu(id: String) {
@@ -138,7 +162,7 @@ internal fun QuickPicksHeroContent(
                 }
             }
     ) {
-        val heroHeight = HomeLayoutConfig.quickPicksHeroHeight(maxWidth)
+        val heroHeight = HomeLayoutConfig.heroCarouselHeight(maxWidth)
 
         HeroCarousel(
             items = heroItems,
