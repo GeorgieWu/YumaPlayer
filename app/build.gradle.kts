@@ -44,6 +44,18 @@ val hasReleaseSigningConfig =
             releaseKeyPassword != null
 
 val isCanary = findProperty("canary")?.toString()?.toBoolean() == true
+val forkCi = providers.gradleProperty("forkCi").map(String::toBooleanStrict).getOrElse(false)
+val forkVersionCode = providers.gradleProperty("forkVersionCode").orNull?.let { value ->
+    val code = value.toIntOrNull()
+    require(code != null && code in 100_000_000..2_100_000_000) {
+        "forkVersionCode must be between 100000000 and 2100000000"
+    }
+    code
+}
+if (forkCi) {
+    require(forkVersionCode != null) { "Fork CI requires forkVersionCode" }
+    require(hasReleaseSigningConfig) { "Fork CI requires the configured release signing key" }
+}
 
 android {
     namespace = "moe.rukamori.archivetune"
@@ -68,6 +80,11 @@ android {
             if (dateCode != null) {
                 versionCode = dateCode
             }
+        }
+
+        forkVersionCode?.let { code ->
+            versionCode = code
+            versionName = "$versionName-fork.$code"
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -120,7 +137,7 @@ android {
         buildConfigField("boolean", "UPDATER_AVAILABLE", "true")
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += if (forkCi) listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
@@ -425,11 +442,12 @@ implementation(libs.androidx.foundation.layout)
 }
 
 androidComponents {
-    onVariants(selector().all()) { variant ->
-        val capitalizedVariantName =
-            variant.name.replaceFirstChar { character ->
-                if (character.isLowerCase()) character.titlecase() else character.toString()
-            }
+    if (forkCi) {
+        beforeVariants(selector().all()) { variant ->
+            variant.enable = variant.buildType == "release" && variant.productFlavors.containsAll(
+                listOf("distribution" to "gms", "device" to "mobile", "abi" to "arm64"),
+            )
+        }
     }
 }
 
