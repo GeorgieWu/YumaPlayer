@@ -548,7 +548,7 @@
     <string name="playback_error_message">Message</string>
     <string name="playback_error_cause">Cause</string>
     <string name="content_language">Default content language</string>
-    <string name="content_country">Default content country</string>
+    <string name="content_country">YouTube region</string>
     <string name="system_default">System default</string>
     <string name="enable_proxy">Enable proxy</string>
     <string name="internet">Internet</string>

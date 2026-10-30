@@ -459,7 +459,7 @@
     <string name="playback_error_message">訊息</string>
     <string name="playback_error_cause">造成</string>
     <string name="content_language">預設內容語言</string>
-    <string name="content_country">預設內容地區</string>
+    <string name="content_country">YouTube 地區</string>
     <string name="system_default">系統預設</string>
     <string name="enable_proxy">啟用代理</string>
     <string name="internet">網路</string>
