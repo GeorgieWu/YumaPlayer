@@ -996,4 +996,5 @@
     <string name="hidden_playlists_description">從媒體庫中隱藏的播放清單會顯示在此</string>
     <string name="no_hidden_playlists">沒有隱藏的播放清單</string>
     <string name="unhide">取消隱藏</string>
+    <string name="login_external_app_unavailable">無法開啟此外部連結。</string>
 </resources>

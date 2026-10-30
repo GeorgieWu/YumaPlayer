@@ -613,4 +613,5 @@
     <string name="album_backdrop_desc">在播放器上将艺术作品显示为模糊背景</string>
     <string name="backdrop_blur_amount">背景模糊程度</string>
     <string name="backdrop_blur_amount_value">%1$d%%</string>
+    <string name="login_external_app_unavailable">无法打开此外部链接。</string>
 </resources>

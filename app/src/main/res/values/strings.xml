@@ -1304,4 +1304,5 @@
     <string name="canvas_cache_desc">Saved videos play offline. Oldest entries are removed when cache is full.</string>
     <string name="canvas_settings_load_failed">Could not load Canvas settings</string>
     <string name="canvas_settings_update_failed">Could not update Canvas settings</string>
+    <string name="login_external_app_unavailable">Could not open this external link.</string>
 </resources>
