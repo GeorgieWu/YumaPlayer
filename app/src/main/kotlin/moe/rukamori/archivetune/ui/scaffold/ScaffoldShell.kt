@@ -62,6 +62,7 @@ import moe.rukamori.archivetune.ui.scaffold.ScaffoldSearchBarHost
 import moe.rukamori.archivetune.ui.scaffold.ScaffoldTopAppBar
 import moe.rukamori.archivetune.ui.scaffold.rememberScaffoldAppState
 import moe.rukamori.archivetune.ui.navigation.isArtworkDetailRoute
+import moe.rukamori.archivetune.ui.screens.login.LOGIN_ROUTE
 import moe.rukamori.archivetune.ui.system.SystemBarController
 import moe.rukamori.archivetune.ui.system.rememberBarScrollVisibility
 import moe.rukamori.archivetune.ui.utils.LocalGlobalVisibility
@@ -143,7 +144,9 @@ fun ScaffoldShell(
                     onPrimaryNavigationClick = appState.handlePrimaryNavigationClick,
                 )
 
-                val scaffoldHazeState = rememberScaffoldHazeState(blurNavBar = appState.blurNavBar)
+                // The embedded login WebView must draw outside Haze's retained capture layers.
+                val isLoginScreen = appState.currentRoute?.substringBefore('?') == LOGIN_ROUTE
+                val scaffoldHazeState = rememberScaffoldHazeState(blurNavBar = appState.blurNavBar && !isLoginScreen)
                 val barScrollVisibility = rememberBarScrollVisibility()
 
                 Box(
