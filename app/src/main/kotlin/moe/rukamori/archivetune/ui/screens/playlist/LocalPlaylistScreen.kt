@@ -12,9 +12,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -37,10 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastSumBy
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -49,13 +52,20 @@ import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalDownloadUtil
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
+import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.PlaylistEditLockKey
 import moe.rukamori.archivetune.constants.SwipeToSongKey
 import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
 import moe.rukamori.archivetune.ui.component.LocalMenuState
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.artworkBackground
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.LocalPlaylistViewModel
 
@@ -100,6 +110,7 @@ fun LocalPlaylistScreen(
             updateLocalPlaylistCover(context, database, playlist, uri)
         }
 
+    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val headerItems by remember {
         derivedStateOf {
             val current = playlist
@@ -108,6 +119,24 @@ fun LocalPlaylistScreen(
         }
     }
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
+    val hasHeader = headerItems > 0
+    val hasArtworkBackdrop = hasHeader && (playlist?.thumbnails?.isNotEmpty() == true)
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
+        standardThreshold = 48.dp,
+    )
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
+
     var dragInfo by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val reorderableState =
         rememberLocalPlaylistReorderableState(
@@ -155,14 +184,8 @@ fun LocalPlaylistScreen(
         onResetDragInfo = { dragInfo = null },
     )
 
-    val (gradientColors, gradientAlpha) =
-        rememberLocalPlaylistGradientState(
-            thumbnails = playlist?.thumbnails,
-            context = context,
-            fallbackColor = MaterialTheme.colorScheme.surface.toArgb(),
-            lazyListState = lazyListState,
-        )
-    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val artworkModel = remember(playlist) { playlist?.thumbnails?.firstOrNull() }
+    val artworkBackground = rememberArtworkBackground(artworkModel)
 
     ExpressivePullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -170,21 +193,13 @@ fun LocalPlaylistScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .artworkBackground(artworkBackground),
     ) {
-        if (!searchState.isSearching) {
-            LocalPlaylistMeshGradient(
-                disableBlur = disableBlur,
-                gradientColors = gradientColors,
-                gradientAlpha = gradientAlpha,
-                surfaceColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
+            contentPadding = contentPadding,
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             uiState.playlist?.let { currentPlaylist ->
                 if (currentPlaylist.songCount == 0 && currentPlaylist.playlist.remoteSongCount == 0) {
@@ -193,10 +208,11 @@ fun LocalPlaylistScreen(
                     localPlaylistHeroItem(
                         playlist = currentPlaylist,
                         playlistLength = playlistLength,
-                        gradientColors = gradientColors,
                         systemBarsTopPadding = systemBarsTopPadding,
                         downloadState = downloadUiState.downloadState,
                         actions = actions,
+                        headerProgress = headerProgress,
+                        disableBlur = disableBlur,
                     )
 
                     localPlaylistSortHeaderItem(
@@ -253,6 +269,13 @@ fun LocalPlaylistScreen(
             headerItems = headerItems,
         )
 
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasArtworkBackdrop,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+
         LocalPlaylistTopBar(
             searchState = searchState,
             playlistTitle = playlist?.playlist?.name.orEmpty(),
@@ -281,13 +304,14 @@ fun LocalPlaylistScreen(
                     .padding(bottom = 16.dp),
         )
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
-                    .align(Alignment.BottomCenter),
-        )
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier =
+                    Modifier
+                        .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime))
+                        .align(Alignment.BottomCenter),
+            )
+        }
     }
 
     LocalPlaylistDialogsHost(

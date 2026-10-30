@@ -150,3 +150,22 @@ Documentation must stay in sync with the codebase as the system evolves:
 1. **Code Changes:** When modifying architectural boundaries, workflows, or layer contracts, update the relevant files under `docs/` in the same pull request.
 2. **Architectural Shifts:** If an architectural pattern or library decision changes, draft or update an Architecture Decision Record (ADR) in `docs/architecture/DECISIONS.md`.
 3. **Module Catalog:** When adding, removing, or renaming modules, update the matrix in `MODULES.md`.
+
+---
+
+## 6. Keep Fork Features in Main
+
+In `GeorgieWu/YumaPlayer`, `main` owns application behavior: both upstream updates and fork-specific features. `ci-build` receives those changes and retains only its additional fork build, signing and release configuration.
+
+```text
+origin/main ─────────┐
+                    ├──→ main ──→ ci-build
+fork feature branch ┘
+```
+
+1. Fetch `origin` and merge `origin/main` into local `main`. Do not reset `main` to upstream once it contains fork features.
+2. Develop fork features from `main`; merge or commit completed changes there in functional units, with their relevant tests.
+3. Merge `main` into `ci-build` when ready to build the fork. Keep its GMS mobile arm64-only configuration when resolving workflow/build-file conflicts.
+4. Do not merge `ci-build` back into `main`. If a build exposes an application bug, fix it on `main` and merge forward again.
+
+Here `origin` is the upstream `MuwMx/YumaPlayer` repository and `georgiewu` is the fork remote. Review the local result before explicitly pushing the intended branches. On `ci-build`, `docs/development/FORK_CI.md` describes signing and publication.

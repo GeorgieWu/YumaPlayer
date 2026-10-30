@@ -459,7 +459,7 @@
     <string name="playback_error_message">訊息</string>
     <string name="playback_error_cause">造成</string>
     <string name="content_language">預設內容語言</string>
-    <string name="content_country">預設內容地區</string>
+    <string name="content_country">YouTube 地區</string>
     <string name="system_default">系統預設</string>
     <string name="enable_proxy">啟用代理</string>
     <string name="internet">網路</string>
@@ -996,4 +996,7 @@
     <string name="hidden_playlists_description">從媒體庫中隱藏的播放清單會顯示在此</string>
     <string name="no_hidden_playlists">沒有隱藏的播放清單</string>
     <string name="unhide">取消隱藏</string>
+    <string name="login_external_app_unavailable">無法開啟此外部連結。</string>
+    <string name="login_missing_datasync_id">未取得 YouTube DataSyncId，無法完成登入。</string>
+    <string name="youtube_login_failed">YouTube 登入失敗，請重試。</string>
 </resources>

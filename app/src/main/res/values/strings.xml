@@ -548,7 +548,7 @@
     <string name="playback_error_message">Message</string>
     <string name="playback_error_cause">Cause</string>
     <string name="content_language">Default content language</string>
-    <string name="content_country">Default content country</string>
+    <string name="content_country">YouTube region</string>
     <string name="system_default">System default</string>
     <string name="enable_proxy">Enable proxy</string>
     <string name="internet">Internet</string>
@@ -1304,4 +1304,7 @@
     <string name="canvas_cache_desc">Saved videos play offline. Oldest entries are removed when cache is full.</string>
     <string name="canvas_settings_load_failed">Could not load Canvas settings</string>
     <string name="canvas_settings_update_failed">Could not update Canvas settings</string>
+    <string name="login_external_app_unavailable">Could not open this external link.</string>
+    <string name="login_missing_datasync_id">YouTube did not provide a DataSyncId. Login could not be completed.</string>
+    <string name="youtube_login_failed">YouTube login failed. Please try again.</string>
 </resources>

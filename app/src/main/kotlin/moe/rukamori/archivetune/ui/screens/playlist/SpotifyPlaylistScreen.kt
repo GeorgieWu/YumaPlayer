@@ -14,11 +14,13 @@ import kotlinx.coroutines.isActive
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -47,13 +49,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,21 +59,16 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.palette.graphics.Palette
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.toBitmap
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
 import moe.rukamori.archivetune.models.MediaMetadata
@@ -88,9 +81,14 @@ import moe.rukamori.archivetune.ui.component.DraggableScrollbar
 import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
+import moe.rukamori.archivetune.ui.component.artworkBackground
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.spotify.SpotifyPlaylistHeader
 import moe.rukamori.archivetune.ui.screens.playlist.spotify.spotifyPlaylistTrackRows
-import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.ui.utils.resize
 import moe.rukamori.archivetune.utils.rememberPreference
@@ -114,13 +112,38 @@ fun SpotifyPlaylistScreen(
     val playlist = state.playlist
     val tracks = state.tracks
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
 
     val showTopBarTitle by remember {
         derivedStateOf { lazyListState.firstVisibleItemIndex > 0 }
     }
 
+    val (disableBlur) = rememberPreference(DisableBlurKey, false)
+
+    val thumbnailUrl =
+        remember(playlist) {
+            playlist?.let { SpotifyMapper.getPlaylistThumbnail(it)?.resize(544, 544) }
+        }
+
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    val hasHeader = !isSearching && playlist != null
+    val hasArtworkBackdrop = hasHeader && !thumbnailUrl.isNullOrBlank()
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
+        standardThreshold = 48.dp,
+    )
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val imeInsets = WindowInsets.ime
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.union(imeInsets).asPaddingValues()
+
     var resolvingTrackId by remember { mutableStateOf<String?>(null) }
     var preloadJob by remember { mutableStateOf<Job?>(null) }
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
@@ -143,66 +166,6 @@ fun SpotifyPlaylistScreen(
         remember(tracks) {
             tracks.sumOf { track -> track.durationMs.toLong() }
         }
-
-    val (disableBlur) = rememberPreference(DisableBlurKey, false)
-    var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
-    val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
-    val thumbnailUrl =
-        remember(playlist) {
-            playlist?.let { SpotifyMapper.getPlaylistThumbnail(it)?.resize(544, 544) }
-        }
-
-    LaunchedEffect(thumbnailUrl) {
-        if (thumbnailUrl != null) {
-            val request =
-                ImageRequest
-                    .Builder(context)
-                    .data(thumbnailUrl)
-                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                    .allowHardware(false)
-                    .build()
-
-            val result =
-                runCatching {
-                    context.imageLoader.execute(request)
-                }.getOrNull()
-
-            if (result != null) {
-                val bitmap = result.image?.toBitmap()
-                if (bitmap != null) {
-                    val palette =
-                        withContext(Dispatchers.Default) {
-                            Palette
-                                .from(bitmap)
-                                .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
-                                .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
-                                .generate()
-                        }
-
-                    gradientColors =
-                        PlayerColorExtractor.extractGradientColors(
-                            palette = palette,
-                            fallbackColor = fallbackColor,
-                        )
-                }
-            }
-        } else {
-            gradientColors = emptyList()
-        }
-    }
-
-    val gradientAlpha by remember {
-        derivedStateOf {
-            if (lazyListState.firstVisibleItemIndex == 0) {
-                val offset = lazyListState.firstVisibleItemScrollOffset
-                (1f - (offset / 600f)).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }
-    }
 
     LaunchedEffect(isSearching) {
         if (isSearching) focusRequester.requestFocus()
@@ -251,135 +214,21 @@ fun SpotifyPlaylistScreen(
         }
     }
 
+    val artworkBackground = rememberArtworkBackground(thumbnailUrl)
+
     ExpressivePullToRefreshBox(
         isRefreshing = state.isLoading && tracks.isNotEmpty(),
         onRefresh = viewModel::reload,
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Color.Transparent),
+                .artworkBackground(artworkBackground),
     ) {
-        if (!disableBlur && gradientColors.isNotEmpty() && gradientAlpha > 0f) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .fillMaxSize(0.55f)
-                        .align(Alignment.TopCenter)
-                        .zIndex(-1f)
-                        .drawBehind {
-                            val width = size.width
-                            val height = size.height
-
-                            if (gradientColors.size >= 3) {
-                                val c0 = gradientColors[0]
-                                val c1 = gradientColors[1]
-                                val c2 = gradientColors[2]
-                                val c3 = gradientColors.getOrElse(3) { c0 }
-                                val c4 = gradientColors.getOrElse(4) { c1 }
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c0.copy(alpha = gradientAlpha * 0.75f),
-                                                    c0.copy(alpha = gradientAlpha * 0.4f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.5f, height * 0.15f),
-                                            radius = width * 0.8f,
-                                        ),
-                                )
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c1.copy(alpha = gradientAlpha * 0.55f),
-                                                    c1.copy(alpha = gradientAlpha * 0.3f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.1f, height * 0.4f),
-                                            radius = width * 0.6f,
-                                        ),
-                                )
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c2.copy(alpha = gradientAlpha * 0.5f),
-                                                    c2.copy(alpha = gradientAlpha * 0.25f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.9f, height * 0.35f),
-                                            radius = width * 0.55f,
-                                        ),
-                                )
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c3.copy(alpha = gradientAlpha * 0.35f),
-                                                    c3.copy(alpha = gradientAlpha * 0.18f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.25f, height * 0.65f),
-                                            radius = width * 0.75f,
-                                        ),
-                                )
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    c4.copy(alpha = gradientAlpha * 0.3f),
-                                                    c4.copy(alpha = gradientAlpha * 0.15f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.55f, height * 0.85f),
-                                            radius = width * 0.9f,
-                                        ),
-                                )
-                            } else if (gradientColors.isNotEmpty()) {
-                                drawRect(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors =
-                                                listOf(
-                                                    gradientColors[0].copy(alpha = gradientAlpha * 0.7f),
-                                                    gradientColors[0].copy(alpha = gradientAlpha * 0.35f),
-                                                    Color.Transparent,
-                                                ),
-                                            center = Offset(width * 0.5f, height * 0.25f),
-                                            radius = width * 0.85f,
-                                        ),
-                                )
-                            }
-                            drawRect(
-                                brush =
-                                    Brush.verticalGradient(
-                                        colors =
-                                            listOf(
-                                                Color.Transparent,
-                                                Color.Transparent,
-                                                surfaceColor.copy(alpha = gradientAlpha * 0.22f),
-                                                surfaceColor.copy(alpha = gradientAlpha * 0.55f),
-                                                surfaceColor,
-                                            ),
-                                        startY = height * 0.4f,
-                                        endY = height,
-                                    ),
-                            )
-                        },
-            )
-        }
-
-        LazyColumn(
+        ProvideArtworkSurface(artworkBackground) {
+            LazyColumn(
             state = lazyListState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
-            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+            modifier = Modifier.fillMaxSize().hazeSource(hazeState),
         ) {
             if (!isSearching) {
                 playlist?.let { currentPlaylist ->
@@ -389,9 +238,10 @@ fun SpotifyPlaylistScreen(
                             tracksCount = tracks.size,
                             loadedDurationMs = loadedDurationMs,
                             thumbnailUrl = thumbnailUrl,
-                            gradientColors = gradientColors,
                             systemBarsTopPadding = systemBarsTopPadding,
                             hasTracks = tracks.isNotEmpty(),
+                            headerProgress = headerProgress,
+                            disableBlur = disableBlur,
                             onReload = { viewModel.reload() },
                             onPlay = { playPlaylist() },
                             onShuffle = { playPlaylist(shuffled = true) },
@@ -469,6 +319,13 @@ fun SpotifyPlaylistScreen(
                     ).align(Alignment.CenterEnd),
             scrollState = lazyListState,
             headerItems = if (!isSearching && playlist != null) 1 else 0,
+        )
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasArtworkBackdrop,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
         )
 
         TopAppBar(
@@ -550,6 +407,7 @@ fun SpotifyPlaylistScreen(
             },
             scrollBehavior = scrollBehavior,
         )
+        }
     }
 }
 

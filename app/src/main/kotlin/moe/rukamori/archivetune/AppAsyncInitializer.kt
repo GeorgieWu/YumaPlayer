@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.constants.*
 import moe.rukamori.archivetune.extensions.toEnum
 import moe.rukamori.archivetune.innertube.YouTube
+import moe.rukamori.archivetune.innertube.models.YouTubeLocale
 import moe.rukamori.archivetune.lyrics.SharedLyricsEngine
 import moe.rukamori.archivetune.scrobbling.LastFmServiceConfig
 import moe.rukamori.archivetune.ui.theme.ThemeSeedPalette
@@ -48,9 +49,7 @@ internal fun App.initializeDeferredAsync() {
         try {
             val prefs = dataStore.data.first()
 
-            prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
-                YouTube.locale = YouTube.locale.copy(gl = country)
-            }
+            YouTube.locale = YouTube.locale.copy(gl = prefs[ContentCountryKey] ?: YouTubeLocale.DEFAULT_COUNTRY)
             prefs[ContentLanguageKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { lang ->
                 YouTube.locale = YouTube.locale.copy(hl = lang)
             }

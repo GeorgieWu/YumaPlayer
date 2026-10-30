@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,10 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -50,12 +48,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastForEachIndexed
-import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppBarHeight
 import moe.rukamori.archivetune.db.entities.Playlist
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
+import moe.rukamori.archivetune.ui.component.YumaImmersiveArtworkHeader
 import moe.rukamori.archivetune.ui.settings.SettingsAnimations
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.theme.LocalYumaColors
@@ -101,223 +99,129 @@ internal fun MetadataChip(
 }
 
 @Composable
-fun LocalPlaylistMeshGradient(
-    disableBlur: Boolean,
-    gradientColors: List<Color>,
-    gradientAlpha: Float,
-    surfaceColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    if (!disableBlur && gradientColors.isNotEmpty() && gradientAlpha > 0f) {
-        Box(
-            modifier =
-                modifier
-                    .fillMaxWidth()
-                    .fillMaxSize(0.55f)
-                    .zIndex(-1f)
-                    .drawBehind {
-                        val width = size.width
-                        val height = size.height
-
-                        if (gradientColors.size >= 3) {
-                            val c0 = gradientColors[0]
-                            val c1 = gradientColors[1]
-                            val c2 = gradientColors[2]
-                            val c3 = gradientColors.getOrElse(3) { c0 }
-                            val c4 = gradientColors.getOrElse(4) { c1 }
-
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                c0.copy(alpha = gradientAlpha * 0.75f),
-                                                c0.copy(alpha = gradientAlpha * 0.4f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.5f, height * 0.15f),
-                                        radius = width * 0.8f,
-                                    ),
-                            )
-
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                c1.copy(alpha = gradientAlpha * 0.55f),
-                                                c1.copy(alpha = gradientAlpha * 0.3f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.1f, height * 0.4f),
-                                        radius = width * 0.6f,
-                                    ),
-                            )
-
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                c2.copy(alpha = gradientAlpha * 0.5f),
-                                                c2.copy(alpha = gradientAlpha * 0.25f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.9f, height * 0.35f),
-                                        radius = width * 0.55f,
-                                    ),
-                            )
-
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                c3.copy(alpha = gradientAlpha * 0.35f),
-                                                c3.copy(alpha = gradientAlpha * 0.18f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.25f, height * 0.65f),
-                                        radius = width * 0.75f,
-                                    ),
-                            )
-
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                c4.copy(alpha = gradientAlpha * 0.3f),
-                                                c4.copy(alpha = gradientAlpha * 0.15f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.55f, height * 0.85f),
-                                        radius = width * 0.9f,
-                                    ),
-                            )
-                        } else if (gradientColors.isNotEmpty()) {
-                            drawRect(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors =
-                                            listOf(
-                                                gradientColors[0].copy(alpha = gradientAlpha * 0.7f),
-                                                gradientColors[0].copy(alpha = gradientAlpha * 0.35f),
-                                                Color.Transparent,
-                                            ),
-                                        center = Offset(width * 0.5f, height * 0.25f),
-                                        radius = width * 0.85f,
-                                    ),
-                            )
-                        }
-
-                        drawRect(
-                            brush =
-                                Brush.verticalGradient(
-                                    colors =
-                                        listOf(
-                                            Color.Transparent,
-                                            Color.Transparent,
-                                            surfaceColor.copy(alpha = gradientAlpha * 0.22f),
-                                            surfaceColor.copy(alpha = gradientAlpha * 0.55f),
-                                            surfaceColor,
-                                        ),
-                                    startY = height * 0.4f,
-                                    endY = height,
-                                ),
-                        )
-                    },
-        )
-    }
-}
-
-@Composable
 fun LocalPlaylistHeroSection(
     playlist: Playlist,
     playlistLength: Int,
-    gradientColors: List<Color>,
     systemBarsTopPadding: Dp,
     downloadState: HeaderDownloadState,
     actions: LocalPlaylistActions,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val editable = playlist.playlist.isEditable
+    val hasArtwork = playlist.thumbnails.isNotEmpty()
+    val changeCoverLabel = stringResource(R.string.change_playlist_cover)
 
-    Column(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(top = systemBarsTopPadding + AppBarHeight),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (hasArtwork) {
+                    Modifier.heightIn(min = ImmersiveArtworkTokens.HeaderMinHeight)
+                } else {
+                    Modifier
+                },
+            ),
+        contentAlignment = Alignment.BottomCenter,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .padding(top = 8.dp, bottom = 20.dp),
-        ) {
-            if (playlist.thumbnails.size == 1) {
-                Surface(
-                    modifier =
-                        Modifier
-                            .size(240.dp)
-                            .shadow(
-                                elevation = 24.dp,
-                                shape = RoundedCornerShape(16.dp),
-                                spotColor =
-                                    gradientColors.getOrNull(0)?.copy(alpha = 0.5f)
-                                        ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            ),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    AsyncImage(
-                        model = playlist.thumbnails[0],
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            } else if (playlist.thumbnails.size > 1) {
-                Surface(
-                    modifier =
-                        Modifier
-                            .size(240.dp)
-                            .shadow(
-                                elevation = 24.dp,
-                                shape = RoundedCornerShape(16.dp),
-                                spotColor =
-                                    gradientColors.getOrNull(0)?.copy(alpha = 0.5f)
-                                        ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            ),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        listOf(
-                            Alignment.TopStart,
-                            Alignment.TopEnd,
-                            Alignment.BottomStart,
-                            Alignment.BottomEnd,
-                        ).fastForEachIndexed { index, alignment ->
-                            AsyncImage(
-                                model = playlist.thumbnails.getOrNull(index),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier =
-                                    Modifier
-                                        .align(alignment)
-                                        .size(120.dp),
-                            )
+        if (hasArtwork) {
+            YumaImmersiveArtworkHeader(
+                progress = headerProgress,
+                disableBlur = disableBlur,
+                modifier = Modifier.matchParentSize(),
+                artwork = {
+                    if (playlist.thumbnails.size == 1) {
+                        AsyncImage(
+                            model = playlist.thumbnails[0],
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                AsyncImage(
+                                    model = playlist.thumbnails.getOrNull(0),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                                AsyncImage(
+                                    model = playlist.thumbnails.getOrNull(1),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                            }
+                            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                AsyncImage(
+                                    model = playlist.thumbnails.getOrNull(2),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                                AsyncImage(
+                                    model = playlist.thumbnails.getOrNull(3),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                            }
                         }
                     }
-                }
-            } else {
+                },
+            )
+        }
+
+        if (editable) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(
+                        top = if (hasArtwork) systemBarsTopPadding + AppBarHeight + 8.dp else 8.dp,
+                        end = 16.dp,
+                    )
+                    .size(40.dp)
+                    .yumaClickable(
+                        pressedScale = SettingsAnimations.PressScale,
+                        onClick = actions.onPickCover,
+                    )
+                    .yumaGlassCard(
+                        shape = CircleShape,
+                        backgroundColor = LocalYumaColors.current.glassBackground,
+                    )
+                    .clip(CircleShape)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = changeCoverLabel
+                        role = Role.Button
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.edit),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    top = if (hasArtwork) systemBarsTopPadding + AppBarHeight else 16.dp,
+                    bottom = 16.dp,
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Bottom,
+        ) {
+            if (!hasArtwork) {
                 Surface(
-                    modifier =
-                        Modifier
-                            .size(240.dp)
-                            .shadow(
-                                elevation = 16.dp,
-                                shape = RoundedCornerShape(16.dp),
-                            ),
+                    modifier = Modifier
+                        .size(120.dp)
+                        .padding(bottom = 16.dp),
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                 ) {
@@ -328,36 +232,12 @@ fun LocalPlaylistHeroSection(
                         Icon(
                             painter = painterResource(R.drawable.queue_music),
                             contentDescription = null,
-                            modifier = Modifier.size(80.dp),
+                            modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-
-            if (editable) {
-                Surface(
-                    onClick = actions.onPickCover,
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shadowElevation = 6.dp,
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                            .size(40.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.edit),
-                            contentDescription = stringResource(R.string.change_playlist_cover),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-        }
 
         Text(
             text = playlist.playlist.name,
@@ -601,23 +481,26 @@ fun LocalPlaylistHeroSection(
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
+}
 
 fun LazyListScope.localPlaylistHeroItem(
     playlist: Playlist,
     playlistLength: Int,
-    gradientColors: List<Color>,
     systemBarsTopPadding: Dp,
     downloadState: HeaderDownloadState,
     actions: LocalPlaylistActions,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
 ) {
     item(key = LOCAL_PLAYLIST_KEY_HEADER, contentType = CONTENT_TYPE_LOCAL_PLAYLIST_HEADER) {
         LocalPlaylistHeroSection(
             playlist = playlist,
             playlistLength = playlistLength,
-            gradientColors = gradientColors,
             systemBarsTopPadding = systemBarsTopPadding,
             downloadState = downloadState,
             actions = actions,
+            headerProgress = headerProgress,
+            disableBlur = disableBlur,
         )
     }
 }

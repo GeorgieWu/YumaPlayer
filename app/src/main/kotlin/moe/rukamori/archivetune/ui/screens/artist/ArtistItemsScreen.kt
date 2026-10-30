@@ -29,6 +29,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -36,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -56,6 +59,8 @@ import moe.rukamori.archivetune.ui.component.shimmer.GridItemPlaceHolder
 import moe.rukamori.archivetune.ui.component.shimmer.ListItemPlaceHolder
 import moe.rukamori.archivetune.ui.component.shimmer.ShimmerHost
 import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.viewmodels.ArtistItemsViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -73,11 +78,24 @@ fun ArtistItemsScreen(
 
     val lazyListState = rememberLazyListState()
     val lazyGridState = rememberLazyGridState()
+    val hazeState = remember { HazeState() }
+    val listProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = false,
+        standardThreshold = 48.dp,
+    )
+    val gridProgress = rememberHeaderScrollProgress(
+        lazyGridState = lazyGridState,
+        hasCollapsibleHeader = false,
+        standardThreshold = 48.dp,
+    )
     val coroutineScope = rememberCoroutineScope()
 
     val title by viewModel.title.collectAsStateWithLifecycle()
     val itemsPage by viewModel.itemsPage.collectAsStateWithLifecycle()
     val itemsLayout by viewModel.itemsLayout.collectAsStateWithLifecycle()
+
+    val headerProgress = if (itemsLayout == ArtistItemsPageLayout.GRID) gridProgress else listProgress
 
     LaunchedEffect(lazyListState) {
         snapshotFlow {
@@ -112,6 +130,7 @@ fun ArtistItemsScreen(
             LazyColumn(
                 state = lazyListState,
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
             ) {
                 items(
                     items = itemsPage?.items.orEmpty().distinctBy { it.id },
@@ -186,6 +205,7 @@ fun ArtistItemsScreen(
                 state = lazyGridState,
                 columns = GridCells.Adaptive(minSize = GridThumbnailHeight + 24.dp),
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
             ) {
                 items(
                     items = itemsPage?.items.orEmpty().distinctBy { it.id },
@@ -230,6 +250,13 @@ fun ArtistItemsScreen(
                 }
             }
         }
+
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = false,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
 
         TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),

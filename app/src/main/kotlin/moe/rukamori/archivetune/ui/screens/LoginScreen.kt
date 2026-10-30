@@ -12,6 +12,9 @@ import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +28,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -37,8 +43,10 @@ import androidx.navigation.NavController
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.utils.backToMain
-import moe.rukamori.archivetune.utils.resetAuthWebViewSession
+import moe.rukamori.archivetune.utils.YouTubeLoginDiagnostics
+import moe.rukamori.archivetune.viewmodels.LoginError
 import moe.rukamori.archivetune.viewmodels.LoginEvent
+import moe.rukamori.archivetune.viewmodels.LoginScreenState
 import moe.rukamori.archivetune.viewmodels.LoginViewModel
 
 const val LOGIN_ROUTE = "login"
@@ -49,7 +57,7 @@ fun buildLoginRoute(startUrl: String? = null): String {
     return "$LOGIN_ROUTE?$LOGIN_URL_ARGUMENT=${Uri.encode(resolvedUrl)}"
 }
 
-private const val DEFAULT_LOGIN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
+internal const val DEFAULT_LOGIN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com"
 
 private val YOUTUBE_COOKIE_URLS =
     listOf(
@@ -68,10 +76,18 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
 
-    @Suppress("UNUSED_VARIABLE")
     val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val loginSuccessMessage = stringResource(R.string.login_success)
-    var webView: WebView? = null
+    var webView by remember { mutableStateOf<WebView?>(null) }
+
+    LaunchedEffect(screenState) {
+        val error = (screenState as? LoginScreenState.Error)?.error ?: return@LaunchedEffect
+        val message = when (error) {
+            LoginError.MissingDataSyncId -> R.string.login_missing_datasync_id
+            LoginError.LoginFailed -> R.string.youtube_login_failed
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
 
     LaunchedEffect(viewModel, loginSuccessMessage) {
         viewModel.events.collect { event ->
@@ -114,17 +130,30 @@ fun LoginScreen(
                         val cookieManager = CookieManager.getInstance()
                         webViewClient =
                             object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                                    handleYouTubeLoginNavigation(context, request) {
+                                        Toast.makeText(context, R.string.login_external_app_unavailable, Toast.LENGTH_LONG).show()
+                                    }
+
+                                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                    if (request.isForMainFrame) YouTubeLoginDiagnostics.event("web_error code=${error.errorCode}")
+                                }
+
+                                override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                                    if (request.isForMainFrame) YouTubeLoginDiagnostics.event("web_http_error status=${response.statusCode}")
+                                }
+
                                 override fun onPageFinished(
                                     view: WebView,
                                     url: String?,
                                 ) {
-                                    val isYouTubePage = url?.contains("youtube.com", ignoreCase = true) == true
+                                    val isYouTubePage = isYouTubeLoginHost(url?.let(Uri::parse)?.host)
                                     if (isYouTubePage) {
                                         loadUrl(
                                             "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var v=c.get('VISITOR_DATA');if(v){Android.onRetrieveVisitorData(v);return}}var y=window.yt&&window.yt.config_;if(y&&y.VISITOR_DATA){Android.onRetrieveVisitorData(y.VISITOR_DATA);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"VISITOR_DATA\":\"([^\"]+)\"/);if(m){Android.onRetrieveVisitorData(m[1]);return}}}catch(e){}})())",
                                         )
                                         loadUrl(
-                                            "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var d=c.get('DATASYNC_ID');if(d){Android.onRetrieveDataSyncId(d);return}}var y=window.yt&&window.yt.config_;if(y&&y.DATASYNC_ID){Android.onRetrieveDataSyncId(y.DATASYNC_ID);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/[\\\"'](?:DATASYNC_ID|dataSyncId)[\\\"']\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']/);if(m){Android.onRetrieveDataSyncId(m[1]);return}}}catch(e){}})())",
+                                            "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var d=c.get('DATASYNC_ID');if(d){Android.onRetrieveDataSyncId(d);return}}var y=window.yt&&window.yt.config_;if(y&&y.DATASYNC_ID){Android.onRetrieveDataSyncId(y.DATASYNC_ID);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/[\\\"'](?:DATASYNC_ID|datasyncId|dataSyncId)[\\\"']\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']/);if(m){Android.onRetrieveDataSyncId(m[1]);return}}}catch(e){}})())",
                                         )
                                         loadUrl(
                                             "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var t=c.get('PO_TOKEN');if(t){Android.onRetrievePoToken(t);return}}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"PO_TOKEN\":\"([^\"]+)\"/);if(m){Android.onRetrievePoToken(m[1]);return}}}catch(e){}})())",
@@ -225,7 +254,7 @@ private fun mergeYouTubeCookies(
 private fun String?.toYouTubeCookieOrigin(): String? {
     val parsed = this?.let(Uri::parse) ?: return null
     val host = parsed.host?.lowercase() ?: return null
-    if (host != "youtube.com" && !host.endsWith(".youtube.com")) return null
+    if (!isYouTubeLoginHost(host)) return null
 
     val scheme =
         parsed.scheme

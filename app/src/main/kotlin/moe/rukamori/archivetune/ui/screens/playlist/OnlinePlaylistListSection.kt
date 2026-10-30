@@ -75,26 +75,16 @@ fun filterPlaylistSongs(
         }
 }
 
-fun LazyListScope.onlinePlaylistShimmerItem(systemBarsTopPadding: Dp) {
+fun LazyListScope.onlinePlaylistShimmerItem() {
     item(key = ONLINE_PLAYLIST_KEY_SHIMMER, contentType = CONTENT_TYPE_ONLINE_PLAYLIST_SHIMMER) {
         ShimmerHost {
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(top = systemBarsTopPadding + AppBarHeight),
+                        .padding(top = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .padding(top = 8.dp, bottom = 20.dp)
-                            .size(240.dp)
-                            .shimmer()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.onSurface),
-                )
-
                 TextPlaceholder(
                     height = 28.dp,
                     modifier =
@@ -161,18 +151,20 @@ fun LazyListScope.onlinePlaylistHeaderItem(
     playlist: PlaylistItem,
     isBookmarked: Boolean,
     downloadState: HeaderDownloadState,
-    gradientColors: List<Color>,
     systemBarsTopPadding: Dp,
     actions: OnlinePlaylistActions,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
 ) {
     item(key = ONLINE_PLAYLIST_KEY_HEADER, contentType = CONTENT_TYPE_ONLINE_PLAYLIST_HEADER) {
         OnlinePlaylistHeroSection(
             playlist = playlist,
             isBookmarked = isBookmarked,
             downloadState = downloadState,
-            gradientColors = gradientColors,
             systemBarsTopPadding = systemBarsTopPadding,
             actions = actions,
+            headerProgress = headerProgress,
+            disableBlur = disableBlur,
             modifier = Modifier.animateItem(),
         )
     }

@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -82,12 +83,14 @@ import moe.rukamori.archivetune.db.entities.TagEntity
 import moe.rukamori.archivetune.spotify.SpotifyAccountViewModel
 import moe.rukamori.archivetune.ui.component.LibraryFilterChipBar
 import moe.rukamori.archivetune.ui.component.TagsManagementDialog
+import moe.rukamori.archivetune.ui.scaffold.BindHeaderScroll
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
 
 @Composable
 fun LibraryScreen(
     navController: NavController,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
     spotifyAccountViewModel: SpotifyAccountViewModel = hiltViewModel(),
 ) {
     val defaultFilter by rememberEnumPreference(ChipSortTypeKey, LibraryFilter.LIBRARY)
@@ -138,6 +141,12 @@ fun LibraryScreen(
 
     val density = LocalDensity.current
     val headerState = rememberLibraryCollapsingHeaderState(LibraryHeaderHeight)
+
+    BindHeaderScroll(
+        connection = scrollBehavior?.nestedScrollConnection,
+        hasCollapsibleHeader = false,
+        progressProvider = { (1f - headerState.progress).coerceIn(0f, 1f) },
+    )
 
     Box(
         modifier = Modifier.fillMaxSize(),

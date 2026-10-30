@@ -7,6 +7,7 @@
 package moe.rukamori.archivetune.ui.screens
 
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import moe.rukamori.archivetune.db.entities.AlbumWithSongs
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadState
@@ -15,9 +16,10 @@ fun LazyListScope.albumHeaderSection(
     albumWithSongs: AlbumWithSongs,
     songCount: Int,
     downloadState: HeaderDownloadState,
+    systemBarsTopPadding: Dp,
     actions: AlbumActions,
-    topPadding: Dp,
-    heroSpacerHeight: Dp,
+    headerProgress: () -> Float,
+    disableBlur: Boolean,
     onArtistClick: (String) -> Unit,
 ) {
     item(key = ALBUM_KEY_HEADER, contentType = CONTENT_TYPE_ALBUM_HEADER) {
@@ -25,10 +27,12 @@ fun LazyListScope.albumHeaderSection(
             albumWithSongs = albumWithSongs,
             songCount = songCount,
             downloadState = downloadState,
+            systemBarsTopPadding = systemBarsTopPadding,
             actions = actions,
-            topPadding = topPadding,
-            heroSpacerHeight = heroSpacerHeight,
+            headerProgress = headerProgress,
+            disableBlur = disableBlur,
             onArtistClick = onArtistClick,
+            modifier = Modifier.animateItem(),
         )
     }
 }

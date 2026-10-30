@@ -324,7 +324,7 @@
     <string name="login">登录</string>
     <string name="not_logged_in">未登录</string>
     <string name="content_language">默认内容语言</string>
-    <string name="content_country">默认内容国家</string>
+    <string name="content_country">YouTube 地区</string>
     <string name="system_default">系统默认</string>
     <string name="enable_proxy">启用代理</string>
     <string name="proxy_type">代理类型</string>
@@ -613,4 +613,7 @@
     <string name="album_backdrop_desc">在播放器上将艺术作品显示为模糊背景</string>
     <string name="backdrop_blur_amount">背景模糊程度</string>
     <string name="backdrop_blur_amount_value">%1$d%%</string>
+    <string name="login_external_app_unavailable">无法打开此外部链接。</string>
+    <string name="login_missing_datasync_id">未获取到 YouTube DataSyncId，无法完成登录。</string>
+    <string name="youtube_login_failed">YouTube 登录失败，请重试。</string>
 </resources>

@@ -49,7 +49,7 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable(Screens.Library.route) {
-        LibraryScreen(navController)
+        LibraryScreen(navController, scrollBehavior = scrollBehavior)
     }
     composable(Screens.Search.route) {
         SearchScreen(

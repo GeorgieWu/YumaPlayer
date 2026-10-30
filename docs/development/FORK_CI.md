@@ -51,11 +51,18 @@ signature checks, or rebuild for reproducibility checks.
 
 ## Scope
 
+Application features and upstream updates are integrated on `main`, then merged
+forward into `ci-build`. Both branches share the application code; `ci-build`
+adds only the fork build, signing and release configuration. Do not merge it back
+into `main`. See [the development guide](DEVELOPMENT_GUIDE.md#6-keep-fork-features-in-main)
+for the branch flow.
+
 This branch keeps only the fork build workflow. It removes the upstream
 multi-variant, Debug/PR APK, Telegram, issue-closing, license-header, contributor
-update, and separate release automation. Workflows on the unchanged default
-branch are unaffected; its scheduled workflows remain configured there.
+update, and separate release automation. This branch-specific CI configuration
+does not replace the upstream workflows retained on `main`; its scheduled
+workflows remain configured there.
 
 Without `forkCi`, local builds retain the upstream variants, ABI settings, and
-debug-signing fallback. Application behavior, including the update source,
-remains upstream behavior.
+debug-signing fallback. The CI configuration itself does not change application
+behavior or the update source; application changes come from `main`.

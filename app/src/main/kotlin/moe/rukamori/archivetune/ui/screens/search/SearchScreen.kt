@@ -33,6 +33,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.ui.component.NavigationTitle
+import moe.rukamori.archivetune.ui.scaffold.BindHeaderScroll
 import moe.rukamori.archivetune.viewmodels.SearchDiscoveryScreenState
 import moe.rukamori.archivetune.viewmodels.SearchDiscoveryTab
 import moe.rukamori.archivetune.viewmodels.SearchDiscoveryViewModel
@@ -48,6 +49,14 @@ fun SearchScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val lazyListState = rememberLazyListState()
+
+    BindHeaderScroll(
+        connection = headerScrollConnection,
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = false,
+        standardThreshold = 48.dp,
+    )
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val scrollToTop =
         backStackEntry

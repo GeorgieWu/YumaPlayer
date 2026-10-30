@@ -36,7 +36,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -50,7 +52,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.ui.component.heroScrollCoverMotion
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -72,6 +76,8 @@ internal fun HeroMediaCard(
             .build()
     }
     val mediaLayer = rememberGraphicsLayer()
+    val scrollProgress = LocalHeroScrollProgress.current
+    val animationsDisabled = LocalAnimationsDisabled.current
 
     HeroPageWipe(
         pageOffset = pageOffset,
@@ -86,6 +92,11 @@ internal fun HeroMediaCard(
             modifier = Modifier
                 .fillMaxSize()
                 .heroPageMediaDrift(pageOffset)
+                .heroScrollCoverMotion(
+                    scrollProgress = scrollProgress,
+                    animationsDisabled = animationsDisabled,
+                    edgeBlur = edgeBlur,
+                ),
         ) {
             Box(
                 modifier = Modifier

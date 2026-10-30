@@ -56,11 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAny
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
-import androidx.palette.graphics.Palette
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.toBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,7 +87,6 @@ import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.haptics.YumaHaptics
 import moe.rukamori.archivetune.ui.menu.SelectionSongMenu
 import moe.rukamori.archivetune.ui.menu.removeSongFromRemotePlaylist
-import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.ui.utils.DownloadProgressFloatingToolbar
 import moe.rukamori.archivetune.ui.utils.DownloadProgressToolbarState
 import moe.rukamori.archivetune.ui.utils.HeaderDownloadItem
@@ -224,28 +218,6 @@ fun rememberLocalPlaylistDownloadUiState(): LocalPlaylistDownloadUiState {
             mutableSongs = mutableSongs,
         )
     }
-}
-
-@Composable
-fun rememberLocalPlaylistGradientState(
-    thumbnails: List<String>?,
-    context: Context,
-    fallbackColor: Int,
-    lazyListState: LazyListState,
-): Pair<List<Color>, Float> {
-    var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
-    LocalPlaylistCoverGradientEffect(thumbnails, context, fallbackColor) { gradientColors = it }
-    val gradientAlpha by remember {
-        derivedStateOf {
-            if (lazyListState.firstVisibleItemIndex == 0) {
-                val offset = lazyListState.firstVisibleItemScrollOffset
-                (1f - (offset / 600f)).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }
-    }
-    return gradientColors to gradientAlpha
 }
 
 fun commitLocalPlaylistReorder(
@@ -905,87 +877,6 @@ fun LocalPlaylistReorderEffect(
             }
         }
     }
-}
-
-@Composable
-fun LocalPlaylistCoverGradientEffect(
-    thumbnails: List<String>?,
-    context: Context,
-    fallbackColor: Int,
-    onGradientColorsChange: (List<Color>) -> Unit,
-) {
-    LaunchedEffect(thumbnails) {
-        val thumbnailUrl = thumbnails?.firstOrNull()
-        if (thumbnailUrl != null) {
-            val request =
-                ImageRequest
-                    .Builder(context)
-                    .data(thumbnailUrl)
-                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                    .allowHardware(false)
-                    .build()
-
-            val result =
-                runCatching {
-                    context.imageLoader.execute(request)
-                }.getOrNull()
-
-            if (result != null) {
-                val bitmap = result.image?.toBitmap()
-                if (bitmap != null) {
-                    val palette =
-                        withContext(Dispatchers.Default) {
-                            Palette
-                                .from(bitmap)
-                                .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
-                                .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
-                                .generate()
-                        }
-
-                    val extractedColors =
-                        PlayerColorExtractor.extractGradientColors(
-                            palette = palette,
-                            fallbackColor = fallbackColor,
-                        )
-                    onGradientColorsChange(extractedColors)
-                }
-            }
-        } else {
-            onGradientColorsChange(emptyList())
-        }
-    }
-}
-
-@Composable
-fun LocalPlaylistEffects(
-    isSearching: Boolean,
-    focusRequester: FocusRequester,
-    selection: Boolean,
-    visibleSongMapIds: Set<Int>,
-    selectedSongMapIds: Set<Int>,
-    onSelectedSongMapIdsChange: (Set<Int>) -> Unit,
-    songs: List<PlaylistSong>,
-    mutableSongs: SnapshotStateList<PlaylistSong>,
-    downloadUtil: DownloadUtil,
-    onDownloadsChange: (Map<String, Download>) -> Unit,
-    downloadState: HeaderDownloadState,
-    onDownloadStateChange: (HeaderDownloadState) -> Unit,
-    onResetDownloadsPaused: () -> Unit,
-    isDragging: Boolean,
-    dragInfo: Pair<Int, Int>?,
-    onReorderCommit: (from: Int, to: Int) -> Unit,
-    onResetDragInfo: () -> Unit,
-    thumbnails: List<String>?,
-    context: Context,
-    fallbackColor: Int,
-    onGradientColorsChange: (List<Color>) -> Unit,
-) {
-    LocalPlaylistSearchFocusEffect(isSearching, focusRequester)
-    LocalPlaylistSelectionPruneEffect(selection, visibleSongMapIds, selectedSongMapIds, onSelectedSongMapIdsChange)
-    LocalPlaylistDownloadSyncEffect(songs, mutableSongs, downloadUtil, onDownloadsChange, onDownloadStateChange)
-    LocalPlaylistDownloadPausedEffect(downloadState, onResetDownloadsPaused)
-    LocalPlaylistReorderEffect(isDragging, dragInfo, onReorderCommit, onResetDragInfo)
-    LocalPlaylistCoverGradientEffect(thumbnails, context, fallbackColor, onGradientColorsChange)
 }
 
 @Composable

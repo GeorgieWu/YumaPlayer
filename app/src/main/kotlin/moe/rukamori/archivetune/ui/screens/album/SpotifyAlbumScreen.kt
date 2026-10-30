@@ -12,10 +12,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -49,22 +50,31 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
-import moe.rukamori.archivetune.constants.AppBarHeight
+import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
 import moe.rukamori.archivetune.spotify.SpotifyPlaybackResolver
 import moe.rukamori.archivetune.spotify.SpotifyTracksQueue
 import moe.rukamori.archivetune.spotify.models.SpotifyTrack
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
+import moe.rukamori.archivetune.ui.component.ProvideArtworkSurface
 import moe.rukamori.archivetune.ui.component.SpotifyTrackListItem
+import moe.rukamori.archivetune.ui.component.artworkBackground
+import moe.rukamori.archivetune.ui.component.rememberArtworkBackground
+import moe.rukamori.archivetune.ui.scaffold.HeaderHazeBackdrop
+import moe.rukamori.archivetune.ui.scaffold.rememberHeaderScrollProgress
 import moe.rukamori.archivetune.ui.screens.playlist.isResolvedAs
 import moe.rukamori.archivetune.ui.utils.backToMain
+import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.SpotifyAlbumUiState
 import moe.rukamori.archivetune.viewmodels.SpotifyAlbumViewModel
 
@@ -78,13 +88,32 @@ fun SpotifyAlbumScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isPlaying by playerConnection.isPlaying.collectAsStateWithLifecycle()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
+    val (disableBlur) = rememberPreference(DisableBlurKey, false)
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
+    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val successState = uiState as? SpotifyAlbumUiState.Success
+    val hasHeader = successState != null
+    val hasArtworkBackdrop = hasHeader && successState.album.images.firstOrNull()?.url?.isNotBlank() == true
+    val headerProgress = rememberHeaderScrollProgress(
+        lazyListState = lazyListState,
+        hasCollapsibleHeader = hasArtworkBackdrop,
+        collapseDistance = ImmersiveArtworkTokens.BackdropHeight,
+        standardThreshold = 48.dp,
+    )
+
+    val playerAwareInsets = LocalPlayerAwareWindowInsets.current
+    val contentInsets = if (hasArtworkBackdrop) {
+        playerAwareInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        playerAwareInsets
+    }
+    val contentPadding = contentInsets.asPaddingValues()
+
     var resolvingTrackId by remember { mutableStateOf<String?>(null) }
     var preloadJob by remember { mutableStateOf<Job?>(null) }
-    val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val showTopBarTitle by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 } }
-    val successState = uiState as? SpotifyAlbumUiState.Success
 
     fun playTracks(tracks: List<SpotifyTrack>, startIndex: Int = 0, shuffled: Boolean = false) {
         val album = successState?.album ?: return
@@ -119,26 +148,30 @@ fun SpotifyAlbumScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-        ExpressivePullToRefreshBox(
+    val artworkModel = remember(successState) {
+        successState?.album?.images?.firstOrNull()?.url
+    }
+    val artworkBackground = rememberArtworkBackground(artworkModel)
+
+    Box(modifier = Modifier.fillMaxSize().artworkBackground(artworkBackground)) {
+        ProvideArtworkSurface(artworkBackground) {
+            ExpressivePullToRefreshBox(
             isRefreshing = false,
             onRefresh = viewModel::loadAlbum,
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(
                 state = lazyListState,
-                contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-                modifier = Modifier.fillMaxSize(),
+                contentPadding = contentPadding,
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
             ) {
                 when (val state = uiState) {
                     SpotifyAlbumUiState.Loading -> {
                         item(key = "loading") {
                             Box(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                        .padding(top = systemBarsTopPadding + AppBarHeight),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
                                 contentAlignment = Alignment.Center,
                             ) { CircularWavyProgressIndicator() }
                         }
@@ -146,10 +179,9 @@ fun SpotifyAlbumScreen(
                     is SpotifyAlbumUiState.Error -> {
                         item(key = "error") {
                             Box(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = systemBarsTopPadding + AppBarHeight + 32.dp, start = 24.dp, end = 24.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
@@ -166,9 +198,12 @@ fun SpotifyAlbumScreen(
                             SpotifyAlbumHeader(
                                 album = state.album,
                                 tracksCount = state.tracks.size,
-                                topPadding = systemBarsTopPadding + AppBarHeight,
+                                systemBarsTopPadding = systemBarsTopPadding,
+                                headerProgress = headerProgress,
+                                disableBlur = disableBlur,
                                 onPlayAll = { playTracks(state.tracks, startIndex = 0, shuffled = false) },
                                 onShuffle = { playTracks(state.tracks, startIndex = 0, shuffled = true) },
+                                modifier = Modifier.animateItem(),
                             )
                         }
                         itemsIndexed(
@@ -205,6 +240,13 @@ fun SpotifyAlbumScreen(
             }
         }
 
+        HeaderHazeBackdrop(
+            progress = headerProgress,
+            hasCollapsibleHeader = hasArtworkBackdrop,
+            hazeState = hazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+
         TopAppBar(
             modifier = Modifier.align(Alignment.TopCenter),
             colors =
@@ -234,5 +276,6 @@ fun SpotifyAlbumScreen(
                 }
             },
         )
+        }
     }
 }

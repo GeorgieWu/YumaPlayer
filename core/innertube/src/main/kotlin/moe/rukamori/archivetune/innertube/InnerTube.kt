@@ -55,7 +55,7 @@ class InnerTube {
 
     var locale =
         YouTubeLocale(
-            gl = Locale.getDefault().country,
+            gl = YouTubeLocale.DEFAULT_COUNTRY,
             hl = Locale.getDefault().toLanguageTag(),
         )
     private val queueLocale = YouTubeLocale(gl = "US", hl = "en")
@@ -545,11 +545,14 @@ class InnerTube {
 
     suspend fun getSwJsData() = withRetry { httpClient.get("https://music.youtube.com/sw.js_data") }
 
-    suspend fun accountMenu(client: YouTubeClient) =
+    suspend fun accountMenu(
+        client: YouTubeClient,
+        authState: PlaybackAuthState = currentAuthState(),
+    ) =
         withRetry {
             httpClient.post("account/account_menu") {
-                ytClient(client, setLogin = true)
-                setBody(AccountMenuBody(client.toContext(locale, visitorData, dataSyncId)))
+                ytClient(client, setLogin = true, authState = authState)
+                setBody(AccountMenuBody(client.toContext(locale, authState.visitorData, authState.dataSyncId)))
             }
         }
 

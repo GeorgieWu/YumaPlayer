@@ -52,6 +52,8 @@ import moe.rukamori.archivetune.ui.scaffold.ScaffoldNavigationRail
 import moe.rukamori.archivetune.ui.scaffold.ScaffoldSearchBarHost
 import moe.rukamori.archivetune.ui.scaffold.ScaffoldTopAppBar
 import moe.rukamori.archivetune.ui.scaffold.rememberScaffoldAppState
+import moe.rukamori.archivetune.ui.screens.LOGIN_ROUTE
+import moe.rukamori.archivetune.ui.screens.isArtworkDetailRoute
 import moe.rukamori.archivetune.ui.utils.LocalGlobalVisibility
 import moe.rukamori.archivetune.ui.utils.LocalPlayerIsExpanded
 import moe.rukamori.archivetune.utils.SyncUtils
@@ -97,7 +99,10 @@ fun ScaffoldShell(
             LocalGlobalVisibility provides isHomeScreenVisible,
             LocalPlayerIsExpanded provides appState.playerBottomSheetState.isExpanded,
         ) {
-            ScreenBackground(isVisible = LocalGlobalVisibility.current, modifier = Modifier.fillMaxSize())
+            ScreenBackground(
+                isVisible = LocalGlobalVisibility.current,
+                modifier = Modifier.fillMaxSize(),
+            )
             if (splashEnabled) {
                 SplashOverlay(isDark = useDarkTheme, onBurstStart = onBurstStart, onDismiss = onSplashDismiss)
             }
@@ -128,7 +133,9 @@ fun ScaffoldShell(
                     onPrimaryNavigationClick = appState.handlePrimaryNavigationClick,
                 )
 
-                val scaffoldHazeState = rememberScaffoldHazeState(blurNavBar = appState.blurNavBar)
+                // The embedded login WebView must draw outside Haze's retained capture layers.
+                val isLoginScreen = appState.currentRoute?.substringBefore('?') == LOGIN_ROUTE
+                val scaffoldHazeState = rememberScaffoldHazeState(blurNavBar = appState.blurNavBar && !isLoginScreen)
                 val barScrollVisibility = rememberBarScrollVisibility()
 
                 Box(
@@ -177,11 +184,13 @@ fun ScaffoldShell(
                                     if (scaffoldHazeState.effectiveSearchHazeState != null) Modifier.hazeSource(scaffoldHazeState.effectiveSearchHazeState) else Modifier,
                                 )
                                 .graphicsLayer {
-                                    val p = if (disableAnimations) 0f else playerExpansionFraction().coerceIn(0f, 1f)
-                                    val scale = 1f - 0.06f * p
+                                    val playerProgress = if (disableAnimations) 0f else playerExpansionFraction().coerceIn(0f, 1f)
+                                    val menuProgress = if (disableAnimations) 0f else menuState.progressProvider().coerceIn(0f, 1f)
+                                    val scaleProgress = maxOf(playerProgress, menuProgress)
+                                    val scale = 1f - 0.06f * scaleProgress
                                     scaleX = scale
                                     scaleY = scale
-                                    alpha = if (p > 0.9f) ((1f - p) / 0.1f).coerceIn(0f, 1f) else 1f
+                                    alpha = if (playerProgress > 0.9f) ((1f - playerProgress) / 0.1f).coerceIn(0f, 1f) else 1f
                                 },
                             homeScrollConnection = appState.scrollController.homeScrollBehavior.nestedScrollConnection,
                             searchScrollConnection = appState.scrollController.searchScrollBehavior.nestedScrollConnection,

@@ -32,6 +32,7 @@ import moe.rukamori.archivetune.utils.decodeSavedAccounts
 import moe.rukamori.archivetune.utils.encodeSavedAccounts
 import moe.rukamori.archivetune.utils.putLegacyPoToken
 import moe.rukamori.archivetune.utils.toPlaybackAuthState
+import moe.rukamori.archivetune.utils.YouTubeLoginDiagnostics
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,7 +43,7 @@ data class YouTubeLoginSession(
     val accountChannelHandle: String,
 )
 
-class MissingYouTubeDataSyncIdException : IllegalStateException("YouTube DataSyncId is missing")
+class MissingYouTubeDataSyncIdException(cause: Throwable? = null) : IllegalStateException("YouTube DataSyncId is missing", cause)
 
 @Singleton
 class YouTubeLoginRepository
@@ -56,6 +57,7 @@ class YouTubeLoginRepository
             dataSyncId: String?,
         ): Result<YouTubeLoginSession> =
             withContext(Dispatchers.IO) {
+                var stage = "cookie_validation"
                 runCatchingPreservingCancellation {
                     val normalizedCookie = cookie.trim()
                     check(hasYouTubeLoginCookie(normalizedCookie)) { "YouTube login cookie is missing" }
@@ -68,11 +70,15 @@ class YouTubeLoginRepository
                         ).normalized()
                     YouTube.authState = initialAuthState
 
+                    stage = "datasync_lookup"
                     val resolvedDataSyncId = resolveRequiredDataSyncId(initialAuthState.dataSyncId)
                     val resolvedAuthState = initialAuthState.copy(dataSyncId = resolvedDataSyncId).normalized()
                     YouTube.authState = resolvedAuthState
 
-                    val accountInfo = YouTube.accountInfo().getOrThrow()
+                    // Use a request-local snapshot so a late page callback cannot alter this request.
+                    stage = "account_verify"
+                    val accountInfo = YouTube.accountInfo(resolvedAuthState).getOrThrow()
+                    stage = "persist_session"
                     persistLoginSession(
                         authState = resolvedAuthState,
                         accountInfo = accountInfo,
@@ -84,7 +90,7 @@ class YouTubeLoginRepository
                         accountEmail = accountInfo.email.orEmpty(),
                         accountChannelHandle = accountInfo.channelHandle.orEmpty(),
                     )
-                }
+                }.onFailure { YouTubeLoginDiagnostics.failure(stage, it) }
             }
 
         suspend fun switchSavedAccount(account: SavedAccount): Result<PlaybackAuthState> =
@@ -182,15 +188,17 @@ class YouTubeLoginRepository
         }
 
         private suspend fun resolveRequiredDataSyncId(candidate: String?): String {
+            val result = YouTube.accountDataSyncId()
+            val failure = result.exceptionOrNull()
+            if (failure is CancellationException) throw failure
             val networkDataSyncId =
-                YouTube
-                    .accountDataSyncId()
+                result
                     .getOrNull()
                     .normalizeDataSyncId()
 
             return networkDataSyncId
                 ?: candidate.normalizeDataSyncId()
-                ?: throw MissingYouTubeDataSyncIdException()
+                ?: throw MissingYouTubeDataSyncIdException(failure)
         }
     }
 
