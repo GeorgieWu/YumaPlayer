@@ -191,9 +191,9 @@ object AuthSessionStore {
     suspend fun visitorData(): Result<String> =
         PlayerClient.visitorData()
 
-    suspend fun accountInfo(): Result<AccountInfo> =
+    suspend fun accountInfo(authState: PlaybackAuthState = currentPlaybackAuthState()): Result<AccountInfo> =
         runCatching {
-            val response = innerTube.accountMenu(WEB_REMIX).body<AccountMenuResponse>()
+            val response = innerTube.accountMenu(WEB_REMIX, authState).body<AccountMenuResponse>()
             val accountInfo =
                 response.actions
                     .firstOrNull()
@@ -242,6 +242,9 @@ object AuthSessionStore {
                     }.sortedByDescending { (_, isSelected) -> isSelected }
                     .firstOrNull()
                     ?.first
-                ?: throw IllegalStateException("Failed to get YouTube DataSyncId")
+                ?: throw AccountDataSyncIdUnavailableException()
         }
 }
+
+/** The accounts response was parsed successfully but contained no usable login context. */
+class AccountDataSyncIdUnavailableException : IllegalStateException("Failed to get YouTube DataSyncId")

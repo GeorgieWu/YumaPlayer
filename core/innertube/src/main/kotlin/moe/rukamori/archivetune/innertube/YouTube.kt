@@ -401,6 +401,10 @@ object YouTube {
     suspend fun accountInfo(): Result<AccountInfo> =
         AuthSessionStore.accountInfo()
 
+    /** Verify a supplied login snapshot without changing the active account context. */
+    suspend fun accountInfo(authState: PlaybackAuthState): Result<AccountInfo> =
+        AuthSessionStore.accountInfo(authState)
+
     suspend fun accountChannels(): Result<List<AccountChannel>> =
         AuthSessionStore.accountChannels()
 

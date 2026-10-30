@@ -613,4 +613,6 @@
     <string name="album_backdrop_desc">在播放器上将艺术作品显示为模糊背景</string>
     <string name="backdrop_blur_amount">背景模糊程度</string>
     <string name="backdrop_blur_amount_value">%1$d%%</string>
+    <string name="login_missing_datasync_id">未获取到 YouTube DataSyncId，无法完成登录。</string>
+    <string name="youtube_login_failed">YouTube 登录失败，请重试。</string>
 </resources>

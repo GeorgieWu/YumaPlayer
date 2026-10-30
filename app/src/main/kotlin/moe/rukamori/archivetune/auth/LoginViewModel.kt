@@ -17,12 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import moe.rukamori.archivetune.auth.CompleteYouTubeLoginUseCase
-import moe.rukamori.archivetune.auth.MissingYouTubeDataSyncIdException
-import moe.rukamori.archivetune.auth.SaveYouTubePoTokenUseCase
-import moe.rukamori.archivetune.auth.UpdateYouTubeLoginContextUseCase
 import moe.rukamori.archivetune.innertube.PlaybackAuthState
-import timber.log.Timber
+import moe.rukamori.archivetune.innertube.utils.hasYouTubeLoginCookie
 import javax.inject.Inject
 
 sealed interface LoginScreenState {
@@ -77,24 +73,25 @@ class LoginViewModel
         private var completedCookie: String? = null
 
         fun onVisitorDataExtracted(visitorData: String?) {
-            val normalized = visitorData.normalizeAuthValue() ?: return
-            latestVisitorData = normalized
             viewModelScope.launch {
+                val normalized = visitorData.normalizeAuthValue() ?: return@launch
+                latestVisitorData = normalized
                 updateYouTubeLoginContext(visitorData = normalized)
             }
         }
 
         fun onDataSyncIdExtracted(dataSyncId: String?) {
-            val normalized = dataSyncId.normalizeDataSyncId() ?: return
-            val currentState = _screenState.value
-            if (currentState is LoginScreenState.Success && currentState.account.dataSyncId != normalized) return
-
-            latestDataSyncId = normalized
+            // JavascriptInterface callbacks run off-main; serialize all login inputs on Main.
             viewModelScope.launch {
-                updateYouTubeLoginContext(dataSyncId = normalized)
-            }
-            if (currentState is LoginScreenState.Error && currentState.error == LoginError.MissingDataSyncId) {
-                onCookiesCaptured(activeCookie)
+                val normalized = dataSyncId.normalizeDataSyncId() ?: return@launch
+                val currentState = _screenState.value
+                if (currentState is LoginScreenState.Success && currentState.account.dataSyncId != normalized) return@launch
+
+                latestDataSyncId = normalized
+                launch { updateYouTubeLoginContext(dataSyncId = normalized) }
+                if (currentState is LoginScreenState.Error && currentState.error == LoginError.MissingDataSyncId) {
+                    beginLogin(activeCookie)
+                }
             }
         }
 
@@ -106,7 +103,13 @@ class LoginViewModel
         }
 
         fun onCookiesCaptured(cookie: String?) {
+            viewModelScope.launch { beginLogin(cookie) }
+        }
+
+        private fun beginLogin(cookie: String?) {
             val normalizedCookie = cookie.normalizeAuthValue() ?: return
+            // WebView also reports visitor cookies before the user has authenticated.
+            if (!hasYouTubeLoginCookie(normalizedCookie)) return
             if (completedCookie == normalizedCookie) return
             if (loginJob?.isActive == true && activeCookie == normalizedCookie) return
 
@@ -115,11 +118,24 @@ class LoginViewModel
             loginJob =
                 viewModelScope.launch {
                     _screenState.value = LoginScreenState.Loading
-                    completeYouTubeLogin(
+                    val candidate = latestDataSyncId
+                    var result = completeYouTubeLogin(
                         cookie = normalizedCookie,
                         visitorData = latestVisitorData,
-                        dataSyncId = latestDataSyncId,
-                    ).onSuccess { session ->
+                        dataSyncId = candidate,
+                    )
+                    // A page probe can finish while the network lookup is still in flight.
+                    val lateCandidate = latestDataSyncId
+                    if (result.exceptionOrNull() is MissingYouTubeDataSyncIdException &&
+                        lateCandidate != null && lateCandidate != candidate
+                    ) {
+                        result = completeYouTubeLogin(
+                            cookie = normalizedCookie,
+                            visitorData = latestVisitorData,
+                            dataSyncId = lateCandidate,
+                        )
+                    }
+                    result.onSuccess { session ->
                         completedCookie = normalizedCookie
                         latestVisitorData = session.authState.visitorData
                         latestDataSyncId = session.authState.dataSyncId
@@ -134,7 +150,6 @@ class LoginViewModel
                             )
                         _events.send(LoginEvent.Completed)
                     }.onFailure { throwable ->
-                        Timber.e(throwable, "Failed to complete YouTube login")
                         _screenState.value =
                             LoginScreenState.Error(
                                 if (throwable is MissingYouTubeDataSyncIdException) {
