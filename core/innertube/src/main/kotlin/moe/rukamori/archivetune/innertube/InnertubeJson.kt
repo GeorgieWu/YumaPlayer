@@ -48,16 +48,20 @@ internal fun JsonObject.parseAccountChannelDataSyncId(): String? =
         ?: this["serviceEndpoint"]?.findDelegationValue())
         ?.normalizeAccountChannelDataSyncId()
 
-internal fun JsonElement.findMainAppWebDataSyncId(): String? =
-    (this as? JsonObject)
+internal fun JsonElement.findMainAppWebDataSyncId(): String? {
+    val context = (this as? JsonObject)
         ?.get("responseContext")
         ?.jsonObjectOrNull()
         ?.get("mainAppWebResponseContext")
         ?.jsonObjectOrNull()
-        ?.get("dataSyncId")
-        ?.jsonPrimitiveOrNull()
-        ?.contentOrNull
-        ?.normalizeAccountChannelDataSyncId()
+        ?: return null
+
+    // YouTube's response context uses datasyncId; retain the older camel-case alias.
+    return sequenceOf("datasyncId", "dataSyncId")
+        .mapNotNull { key ->
+            context[key]?.jsonPrimitiveOrNull()?.contentOrNull?.normalizeAccountChannelDataSyncId()
+        }.firstOrNull()
+}
 
 internal fun JsonElement.objectsNamed(name: String): Sequence<JsonObject> =
     sequence {

@@ -1305,4 +1305,6 @@
     <string name="canvas_settings_load_failed">Could not load Canvas settings</string>
     <string name="canvas_settings_update_failed">Could not update Canvas settings</string>
     <string name="login_external_app_unavailable">Could not open this external link.</string>
+    <string name="login_missing_datasync_id">YouTube did not provide a DataSyncId. Login could not be completed.</string>
+    <string name="youtube_login_failed">YouTube login failed. Please try again.</string>
 </resources>
