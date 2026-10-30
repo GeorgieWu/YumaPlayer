@@ -773,7 +773,6 @@ val CountryCodeToName =
         "KR" to "South Korea",
         "US" to "United States",
         "GB" to "United Kingdom",
-        "CN" to "China",
         "TW" to "Taiwan",
         "HK" to "Hong Kong",
         "FR" to "France",

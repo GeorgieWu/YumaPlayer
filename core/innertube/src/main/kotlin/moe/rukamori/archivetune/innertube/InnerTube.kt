@@ -55,7 +55,7 @@ class InnerTube {
 
     var locale =
         YouTubeLocale(
-            gl = Locale.getDefault().country,
+            gl = YouTubeLocale.DEFAULT_COUNTRY,
             hl = Locale.getDefault().toLanguageTag(),
         )
     private val queueLocale = YouTubeLocale(gl = "US", hl = "en")

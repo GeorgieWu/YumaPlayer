@@ -110,7 +110,7 @@ class App :
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "")
         YouTube.locale = YouTubeLocale(
-            gl = locale.country.takeIf { it in CountryCodeToName } ?: "US",
+            gl = YouTubeLocale.DEFAULT_COUNTRY,
             hl = locale.language.takeIf { it in LanguageCodeToName }
                 ?: languageTag.takeIf { it in LanguageCodeToName }
                 ?: "en",

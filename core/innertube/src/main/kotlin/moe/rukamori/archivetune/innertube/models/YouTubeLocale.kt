@@ -12,4 +12,8 @@ import kotlinx.serialization.Serializable
 data class YouTubeLocale(
     val gl: String, // geolocation
     val hl: String, // host language
-)
+) {
+    companion object {
+        const val DEFAULT_COUNTRY = "US"
+    }
+}

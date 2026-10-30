@@ -324,7 +324,7 @@
     <string name="login">登录</string>
     <string name="not_logged_in">未登录</string>
     <string name="content_language">默认内容语言</string>
-    <string name="content_country">默认内容国家</string>
+    <string name="content_country">YouTube 地区</string>
     <string name="system_default">系统默认</string>
     <string name="enable_proxy">启用代理</string>
     <string name="proxy_type">代理类型</string>
