@@ -38,6 +38,7 @@ internal fun rememberCanvasPlaybackController(
     onReadyChange: (Boolean) -> Unit = {},
 ): CanvasPlaybackController {
     val currentOnReadyChange by rememberUpdatedState(onReadyChange)
+    val currentIsPlaying by rememberUpdatedState(isPlaying)
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
@@ -141,7 +142,7 @@ internal fun rememberCanvasPlaybackController(
             controller.attachListener(
                 primary = primary,
                 fallback = fallback,
-                isPlayingProvider = { isPlaying },
+                isPlayingProvider = { currentIsPlaying },
                 isStartedProvider = { lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) },
             )
         onDispose {

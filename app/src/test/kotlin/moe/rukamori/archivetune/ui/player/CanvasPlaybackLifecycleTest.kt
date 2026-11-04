@@ -107,6 +107,41 @@ class CanvasPlaybackLifecycleTest {
     }
 
     @Test
+    fun firstFrameListenerReadsLatestPlaybackAndLifecycleState() {
+        val calls = mutableListOf<String>()
+        lateinit var listener: Player.Listener
+        val player = recordingPlayer(calls) { listener = it }
+        val controller = CanvasPlaybackController(player = player)
+        var isPlaying = true
+        var isStarted = true
+        val detach = controller.attachListener(
+            primary = null,
+            fallback = null,
+            isPlayingProvider = { isPlaying },
+            isStartedProvider = { isStarted },
+        )
+
+        isPlaying = false
+        controller.syncPlayback(isPlaying = isPlaying, isStarted = isStarted)
+        listener.onRenderedFirstFrame()
+
+        assertTrue(controller.isVideoReady)
+        assertEquals(listOf("addListener", "pause"), calls)
+
+        isPlaying = true
+        isStarted = false
+        listener.onRenderedFirstFrame()
+        assertEquals(listOf("addListener", "pause", "pause"), calls)
+
+        isStarted = true
+        listener.onRenderedFirstFrame()
+        assertEquals(listOf("addListener", "pause", "pause", "play"), calls)
+
+        detach()
+        assertEquals(listOf("addListener", "pause", "pause", "play", "removeListener"), calls)
+    }
+
+    @Test
     fun controllerReleaseDelegatesToPlayer() {
         val calls = mutableListOf<String>()
         val player = recordingPlayer(calls)
@@ -116,14 +151,22 @@ class CanvasPlaybackLifecycleTest {
         assertEquals(listOf("release"), calls)
     }
 
-    private fun recordingPlayer(calls: MutableList<String>): Player =
-        Player::class.java.cast(
-            Proxy.newProxyInstance(
-                Player::class.java.classLoader,
-                arrayOf(Player::class.java),
-            ) { _, method, _ ->
-                calls += method.name
-                null
-            },
+    private fun recordingPlayer(
+        calls: MutableList<String>,
+        onListenerAttached: (Player.Listener) -> Unit = {},
+    ): Player =
+        checkNotNull(
+            Player::class.java.cast(
+                Proxy.newProxyInstance(
+                    Player::class.java.classLoader,
+                    arrayOf(Player::class.java),
+                ) { _, method, args ->
+                    calls += method.name
+                    if (method.name == "addListener") {
+                        onListenerAttached(checkNotNull(Player.Listener::class.java.cast(args?.firstOrNull())))
+                    }
+                    null
+                },
+            ),
         )
 }
