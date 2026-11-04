@@ -44,7 +44,7 @@ import coil3.request.crossfade
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.ui.haptics.LocalYumaHaptics
-import moe.rukamori.archivetune.ui.player.CanvasArtworkPlayer
+import moe.rukamori.archivetune.ui.player.canvas.ui.CanvasArtworkPlayer
 import kotlin.math.abs
 
 @Composable
@@ -58,6 +58,7 @@ fun PlayerCoverCard(
     songTitle: String? = null,
     artistName: String? = null,
     isPlaying: Boolean = false,
+    canvasHostEnabled: Boolean = true,
     canvasState: PlayerCanvasState = rememberPlayerCanvasState(mediaId, songTitle, artistName),
     onCoverLoaded: () -> Unit = {}, // <-- Новый колбэк
     onNext: () -> Unit = {},
@@ -210,7 +211,7 @@ fun PlayerCoverCard(
             .background(surfaceColor),
         contentAlignment = Alignment.Center
     ) {
-        val isCanvasActive = canvasState.isCanvasEnabled && canvasState.artwork != null
+        val isCanvasActive = canvasHostEnabled && canvasState.isCanvasEnabled && canvasState.artwork != null
         val placeholder = painterResource(id = placeholderResId)
 
         val bgPainter = previousPainter ?: currentPainter ?: placeholder
@@ -236,15 +237,13 @@ fun PlayerCoverCard(
 
         // Canvas
         if (isCanvasActive) {
-            key(mediaId) {
-                CanvasArtworkPlayer(
-                    primaryUrl = canvasState.primaryUrl,
-                    fallbackUrl = canvasState.fallbackUrl,
-                    isPlaying = isPlaying,
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            CanvasArtworkPlayer(
+                primaryUrl = canvasState.primaryUrl,
+                fallbackUrl = canvasState.fallbackUrl,
+                isPlaying = isPlaying,
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
