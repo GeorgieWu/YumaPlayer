@@ -32,7 +32,7 @@ class UpdateCheckWorker(
             val isEnabled = dataStore.data.map { it[EnableUpdateNotificationKey] ?: false }.first()
             if (!isEnabled) return Result.success()
 
-            val updateChannel =
+            val savedUpdateChannel =
                 dataStore.data
                     .map {
                         it[UpdateChannelKey]?.let { value ->
@@ -44,6 +44,7 @@ class UpdateCheckWorker(
                         } ?: defaultUpdateChannel
                     }.first()
 
+            val updateChannel = if (BuildConfig.FORK_UPDATES) UpdateChannel.STABLE else savedUpdateChannel
             when (updateChannel) {
                 UpdateChannel.NIGHTLY -> {
                     return Result.success()

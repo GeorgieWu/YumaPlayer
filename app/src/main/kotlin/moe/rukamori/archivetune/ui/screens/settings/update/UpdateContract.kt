@@ -12,9 +12,10 @@ import moe.rukamori.archivetune.constants.UpdateChannel
 import moe.rukamori.archivetune.constants.UpdateChannelKey
 import moe.rukamori.archivetune.defaultUpdateChannel
 import moe.rukamori.archivetune.utils.GitCommit
+import moe.rukamori.archivetune.utils.Updater
 
 internal object UpdateContract {
-    const val GITHUB_RELEASES_URL = "https://github.com/MuwMx/YumaPlayer/releases"
+    val GITHUB_RELEASES_URL = Updater.getReleasesUrl()
     const val CHANGELOG_ROUTE_PREFIX = "settings/changelog?channel="
     const val AUTOSTART_ARG_KEY = "autostart"
     const val DOWNLOAD_ARG_KEY = "download"

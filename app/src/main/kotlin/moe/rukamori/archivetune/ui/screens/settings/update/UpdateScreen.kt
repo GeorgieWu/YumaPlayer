@@ -45,7 +45,8 @@ fun UpdateScreen(
 ) {
     val context = LocalContext.current; val uriHandler = LocalUriHandler.current; val coroutineScope = rememberCoroutineScope()
     val (enableUpdateNotification, onEnableUpdateNotificationChange) = rememberPreference(EnableUpdateNotificationKey, defaultValue = false)
-    val (updateChannel, onUpdateChannelChange) = rememberEnumPreference(UpdateChannelKey, defaultValue = defaultUpdateChannel)
+    val (savedUpdateChannel, onUpdateChannelChange) = rememberEnumPreference(UpdateChannelKey, defaultValue = defaultUpdateChannel)
+    val updateChannel = if (BuildConfig.FORK_UPDATES) UpdateChannel.STABLE else savedUpdateChannel
 
     var commits by remember { mutableStateOf<List<GitCommit>>(emptyList()) }
     var isLoadingCommits by remember { mutableStateOf(true) }
@@ -100,21 +101,23 @@ fun UpdateScreen(
         }
     }
 
-    val downloadUrl = remember(updateChannel, latestVersion) {
+    val resolveDownloadUrl = {
         if (updateChannel == UpdateChannel.DAILY_NIGHTLY) Updater.getLatestCanaryDownloadUrl() else Updater.getLatestDownloadUrl()
     }
+    val downloadUrl = remember(updateChannel, latestVersion) { resolveDownloadUrl() }
     val shouldAutostart = autostart || remember(navController) {
         navController.currentBackStackEntry?.arguments?.let { it.getString("autostart") ?: it.getString("download") }?.let { it == "1" || it.equals("true", ignoreCase = true) } ?: false
     }
     var hasAutostarted by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(shouldAutostart, downloadUrl) {
-        if (shouldAutostart && !hasAutostarted && downloadUrl.isNotBlank()) { hasAutostarted = true; installUpdate(downloadUrl) }
+    LaunchedEffect(shouldAutostart, downloadUrl, latestVersion) {
+        val releaseReady = !BuildConfig.FORK_UPDATES || latestVersion != null
+        if (shouldAutostart && releaseReady && !hasAutostarted && downloadUrl.isNotBlank()) { hasAutostarted = true; installUpdate(downloadUrl) }
     }
 
     val updateSheetContent: @Composable ColumnScope.() -> Unit = {
         UpdateReleaseSheetContent(
             version = updateSheetVersion, notes = updateSheetNotes, useInAppUpdateInstaller = useInAppUpdateInstaller,
-            onDownloadOrInstall = { if (!useInAppUpdateInstaller) openUpdateUrl(downloadUrl) else installUpdate(downloadUrl) },
+            onDownloadOrInstall = { installUpdate(resolveDownloadUrl()) },
         )
     }
 
@@ -164,10 +167,10 @@ fun UpdateScreen(
         onCanarySelected = { if (updateChannel != UpdateChannel.DAILY_NIGHTLY) showDailyNightlyDialog.value = true },
         latestVersion = latestVersion, latestImageUrl = latestImageUrl, isUpdateAvailable = isUpdateAvailable,
         isCheckingForUpdate = isCheckingForUpdate, downloadUrl = downloadUrl,
-        onDownloadApk = { if (!useInAppUpdateInstaller) openUpdateUrl(downloadUrl) else installUpdate(downloadUrl) },
+        onDownloadApk = { installUpdate(resolveDownloadUrl()) },
         onCheckForUpdate = handleCheckForUpdate,
         onOpenChangelog = { navController.navigate("settings/changelog?channel=$updateChannel") },
-        onOpenAllReleases = { openUpdateUrl("https://github.com/MuwMx/YumaPlayer/releases") },
+        onOpenAllReleases = { openUpdateUrl(Updater.getReleasesUrl()) },
         latestCommit = latestCommit, onInstallNightly = { installUpdate(Updater.getLatestDownloadUrl()) },
         commits = commits, isLoadingCommits = isLoadingCommits, isExpanded = isExpanded, rotationAngle = rotationAngle,
         onToggleExpanded = { isExpanded = !isExpanded }, onCommitClick = { commit -> uriHandler.openUri(commit.url) },

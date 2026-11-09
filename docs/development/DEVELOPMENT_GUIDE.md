@@ -155,7 +155,7 @@ Documentation must stay in sync with the codebase as the system evolves:
 
 ## 6. Keep Fork Features in Main
 
-In `GeorgieWu/YumaPlayer`, `main` owns application behavior: both upstream updates and fork-specific features. `ci-build` receives those changes and retains only its additional fork build, signing and release configuration.
+In `GeorgieWu/YumaPlayer`, `main` owns application behavior: both upstream updates and fork-specific features. `ci-build` receives those changes and retains its additional fork build, signing, release and update-source integration. The fork updater is a branch-specific exception: keep it on `ci-build` and do not merge it into `main`.
 
 ```text
 origin/main ─────────┐

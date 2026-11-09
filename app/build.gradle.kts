@@ -135,6 +135,7 @@ android {
         buildConfigField("String", "NIGHTLY_BUILD_HASH", "\"$nightlyBuildHash\"")
         buildConfigField("String", "DISTRIBUTION", "\"gms\"")
         buildConfigField("boolean", "UPDATER_AVAILABLE", "true")
+        buildConfigField("boolean", "FORK_UPDATES", forkCi.toString())
 
         ndk {
             abiFilters += if (forkCi) listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a", "x86_64")

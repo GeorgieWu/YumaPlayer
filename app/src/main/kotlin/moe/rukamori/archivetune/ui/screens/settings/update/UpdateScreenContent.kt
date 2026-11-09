@@ -53,7 +53,9 @@ internal fun UpdateScreenContent(
     rotationAngle: Float, onToggleExpanded: () -> Unit, onCommitClick: (GitCommit) -> Unit,
     sheetState: BottomSheetPageState, snackbarHostState: SnackbarHostState,
 ) {
-    val topBarSubtitle = if (updateChannel == UpdateChannel.NIGHTLY) {
+    val topBarSubtitle = if (BuildConfig.FORK_UPDATES) {
+        Updater.getUpdateRepository()
+    } else if (updateChannel == UpdateChannel.NIGHTLY) {
         stringResource(R.string.updates_subtitle_nightly)
     } else {
         stringResource(R.string.updates_subtitle_stable)
@@ -110,8 +112,10 @@ internal fun UpdateScreenContent(
                         checked = enableUpdateNotification, onCheckedChange = onEnableNotificationCheckedChange,
                     )
                 }
-                item {
-                    UpdateChannelPanel(updateChannel = updateChannel, onStableSelected = onStableSelected, onCanarySelected = onCanarySelected)
+                if (!BuildConfig.FORK_UPDATES) {
+                    item {
+                        UpdateChannelPanel(updateChannel = updateChannel, onStableSelected = onStableSelected, onCanarySelected = onCanarySelected)
+                    }
                 }
                 item {
                     AnimatedVisibility(visible = isNightlyChannel) {
@@ -159,7 +163,7 @@ internal suspend fun checkReleaseUpdate(
     onUpToDate: () -> Unit,
     onError: (String) -> Unit,
 ) {
-    val result = if (updateChannel == UpdateChannel.DAILY_NIGHTLY) Updater.getLatestCanaryReleaseInfo() else Updater.getLatestReleaseInfo(forceRefresh = true)
+    val result = if (updateChannel == UpdateChannel.DAILY_NIGHTLY) Updater.getLatestCanaryReleaseInfo(forceRefresh = true) else Updater.getLatestReleaseInfo(forceRefresh = true)
     result.onSuccess { release ->
         val v = if (updateChannel == UpdateChannel.DAILY_NIGHTLY) Updater.getCanaryReleaseVersionName(release) else Updater.getReleaseVersionName(release)
         if (Updater.isUpdateAvailable(v, BuildConfig.VERSION_NAME)) onAvailable(v, release.body) else onUpToDate()

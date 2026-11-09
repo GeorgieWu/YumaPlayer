@@ -52,9 +52,14 @@ private data class ReleasesNetworkResult(
 
 object Updater {
     private val client = HttpClient()
+    private val source = UpdateSource(BuildConfig.FORK_UPDATES)
     private const val ReleaseCacheCheckIntervalMs: Long = 6 * 60 * 60 * 1000L
-    private const val StableReleaseBaseUrl = "https://github.com/MuwMx/YumaPlayer/releases"
-    private const val CanaryReleaseBaseUrl = "https://github.com/MuwMx/YumaCanary/releases"
+    private val StableReleaseBaseUrl = source.releasesUrl()
+    private val CanaryReleaseBaseUrl = source.releasesUrl(isCanary = true)
+    private val releasesEtagKey = stringPreferencesKey(source.cacheKey(GitHubReleasesEtagKey.name))
+    private val releasesJsonKey = stringPreferencesKey(source.cacheKey(GitHubReleasesJsonKey.name))
+    private val releasesLastCheckedAtKey = longPreferencesKey(source.cacheKey(GitHubReleasesLastCheckedAtKey.name))
+    private val releasesFingerprintKey = stringPreferencesKey(source.cacheKey(GitHubReleasesFingerprintKey.name))
     private val GitHubCanaryReleasesEtagKey = stringPreferencesKey("github_canary_releases_etag")
     private val GitHubCanaryReleasesJsonKey = stringPreferencesKey("github_canary_releases_json")
     private val GitHubCanaryReleasesLastCheckedAtKey = longPreferencesKey("github_canary_releases_last_checked_at")
@@ -64,6 +69,12 @@ object Updater {
     private var latestReleaseTag: String? = null
     private var latestReleaseDownloadUrl: String? = null
     private var latestCanaryReleaseTag: String? = null
+
+    fun getReleasesUrl(isCanary: Boolean = false): String = source.releasesUrl(isCanary)
+
+    fun getReleasePageUrl(isCanary: Boolean = false): String = source.releasePageUrl(isCanary)
+
+    fun getUpdateRepository(): String = source.repository()
 
     private val isUpdaterDistribution: Boolean
         get() =
@@ -214,6 +225,7 @@ object Updater {
         a: String,
         b: String,
     ): Boolean {
+        if (source.isFork) return source.isSameForkVersion(a, b)
         val aSemVer = parseSemVerOrNull(a)
         val bSemVer = parseSemVerOrNull(b)
         return if (aSemVer != null && bSemVer != null) {
@@ -234,6 +246,7 @@ object Updater {
         latestVersion: String,
         currentVersion: String,
     ): Boolean {
+        if (source.isFork) return source.isForkUpdateAvailable(latestVersion, currentVersion)
         val latestSemVer = parseSemVerOrNull(latestVersion)
         val currentSemVer = parseSemVerOrNull(currentVersion)
         return if (latestSemVer != null && currentSemVer != null) {
@@ -250,6 +263,7 @@ object Updater {
     }
 
     internal fun findLatestRelease(releases: List<ReleaseInfo>): ReleaseInfo? {
+        if (source.isFork) return source.forkReleases(releases).firstOrNull()
         if (releases.isEmpty()) return null
         val stableReleases = releases.filter { !it.prerelease }
         val target = stableReleases.ifEmpty { return null }
@@ -266,6 +280,7 @@ object Updater {
     }
 
     internal fun findLatestCanaryRelease(releases: List<ReleaseInfo>): ReleaseInfo? {
+        if (source.isFork) return findLatestRelease(releases)
         if (releases.isEmpty()) return null
         val parsed =
             releases.mapNotNull { release ->
@@ -316,16 +331,18 @@ object Updater {
         return preferred?.optString("browser_download_url")?.takeIf { it.isNotBlank() }
     }
 
-    private fun parseReleasesJson(
+    internal fun parseReleasesJson(
         json: String,
         isCanary: Boolean = false,
+        updateSource: UpdateSource = source,
     ): List<ReleaseInfo> {
         val jsonArray = JSONArray(json)
         val releases = ArrayList<ReleaseInfo>(jsonArray.length())
         for (i in 0 until jsonArray.length()) {
             val item = jsonArray.getJSONObject(i)
+            if (updateSource.isFork && item.optBoolean("draft", false)) continue
             val assets = item.optJSONArray("assets")
-            val assetDownloadUrl = findMatchingAssetDownloadUrl(assets, isCanary = isCanary)
+            val assetDownloadUrl = findMatchingAssetDownloadUrl(assets, isCanary = isCanary && !updateSource.isFork)
             val body = if (item.has("body") && !item.isNull("body")) item.optString("body") else null
             val downloadUrl =
                 if (item.isNull("download_url")) {
@@ -352,7 +369,7 @@ object Updater {
                 ),
             )
         }
-        return releases
+        return if (updateSource.isFork) updateSource.forkReleases(releases) else releases
     }
 
     private fun encodeReleasesJson(releases: List<ReleaseInfo>): String =
@@ -400,9 +417,8 @@ object Updater {
         cachedEtag: String?,
         isCanary: Boolean = false,
     ): ReleasesNetworkResult {
-        val repo = if (isCanary) "MuwMx/YumaCanary" else "MuwMx/YumaPlayer"
         val response: HttpResponse =
-            client.get("https://api.github.com/repos/$repo/releases?per_page=$perPage") {
+            client.get(source.releasesApiUrl(perPage, isCanary)) {
                 headers {
                     append("Accept", "application/vnd.github+json")
                     append("User-Agent", "YumaPlayerApp")
@@ -436,7 +452,7 @@ object Updater {
             return emptyList()
         }
 
-        val cachedJson = App.instance.dataStore.getAsync(GitHubReleasesJsonKey)
+        val cachedJson = App.instance.dataStore.getAsync(releasesJsonKey)
         return cachedJson
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { parseReleasesJson(it) }.getOrNull() }
@@ -444,6 +460,7 @@ object Updater {
     }
 
     suspend fun getCachedCanaryReleases(): List<ReleaseInfo> {
+        if (source.isFork) return getCachedReleases()
         if (!isUpdaterDistribution) {
             return emptyList()
         }
@@ -500,6 +517,7 @@ object Updater {
         forceRefresh: Boolean = false,
     ): Result<List<ReleaseInfo>> =
         runCatching {
+            if (source.isFork) return getAllReleases(perPage, forceRefresh)
             if (!isUpdaterDistribution) {
                 return Result.success(emptyList())
             }
@@ -590,6 +608,7 @@ object Updater {
 
     suspend fun getLatestCanaryReleaseInfo(forceRefresh: Boolean = false): Result<ReleaseInfo> =
         runCatching {
+            if (source.isFork) return getLatestReleaseInfo(forceRefresh)
             if (!isUpdaterDistribution) {
                 throw IllegalStateException("Updater is not available for this distribution")
             }
@@ -607,11 +626,7 @@ object Updater {
         branch: String = "",
     ): Result<List<GitCommit>> =
         runCatching {
-            val url = if (branch.isNotBlank()) {
-                "https://api.github.com/repos/MuwMx/YumaPlayer/commits?sha=$branch&per_page=$count"
-            } else {
-                "https://api.github.com/repos/MuwMx/YumaPlayer/commits?per_page=$count"
-            }
+            val url = source.commitsApiUrl(count, branch)
             val response = client.get(url) {
                 headers {
                     append("User-Agent", "YumaPlayerApp")
@@ -648,6 +663,9 @@ object Updater {
             return ""
         }
 
+        // Fork releases are prereleases: GitHub's /latest endpoint cannot select them.
+        if (source.isFork) return latestReleaseDownloadUrl.orEmpty()
+
         if (!canDownloadUpdatesDirectly) {
             return "$StableReleaseBaseUrl/latest"
         }
@@ -662,6 +680,7 @@ object Updater {
     }
 
     fun getLatestCanaryDownloadUrl(): String {
+        if (source.isFork) return getLatestDownloadUrl()
         if (!isUpdaterDistribution) {
             return ""
         }
@@ -688,10 +707,10 @@ object Updater {
 
         return runCatching {
             val now = System.currentTimeMillis()
-            val cachedJson = App.instance.dataStore.getAsync(GitHubReleasesJsonKey)
-            val cachedEtag = App.instance.dataStore.getAsync(GitHubReleasesEtagKey)
-            val lastCheckedAt = App.instance.dataStore.getAsync(GitHubReleasesLastCheckedAtKey, 0L)
-            val cachedFingerprint = App.instance.dataStore.getAsync(GitHubReleasesFingerprintKey)
+            val cachedJson = App.instance.dataStore.getAsync(releasesJsonKey)
+            val cachedEtag = App.instance.dataStore.getAsync(releasesEtagKey)
+            val lastCheckedAt = App.instance.dataStore.getAsync(releasesLastCheckedAtKey, 0L)
+            val cachedFingerprint = App.instance.dataStore.getAsync(releasesFingerprintKey)
 
             val cachedReleases =
                 cachedJson
@@ -725,8 +744,8 @@ object Updater {
                     val fallback = cachedReleases
                     if (!fallback.isNullOrEmpty()) {
                         App.instance.dataStore.edit { settings ->
-                            settings[GitHubReleasesLastCheckedAtKey] = now
-                            networkResult.etag?.let { settings[GitHubReleasesEtagKey] = it }
+                            settings[releasesLastCheckedAtKey] = now
+                            networkResult.etag?.let { settings[releasesEtagKey] = it }
                         }
                         lastCheckTime = now
                         return@runCatching fallback
@@ -743,11 +762,11 @@ object Updater {
                         val hasTopReleaseChanged = cachedFingerprint != newFingerprint
 
                         App.instance.dataStore.edit { settings ->
-                            settings[GitHubReleasesLastCheckedAtKey] = now
-                            networkResult.etag?.let { settings[GitHubReleasesEtagKey] = it }
+                            settings[releasesLastCheckedAtKey] = now
+                            networkResult.etag?.let { settings[releasesEtagKey] = it }
                             if (hasPayloadChanged || hasTopReleaseChanged || cachedJson.isNullOrBlank()) {
-                                settings[GitHubReleasesJsonKey] = networkBody
-                                settings[GitHubReleasesFingerprintKey] = newFingerprint
+                                settings[releasesJsonKey] = networkBody
+                                settings[releasesFingerprintKey] = newFingerprint
                             }
                         }
                         lastCheckTime = now

@@ -186,11 +186,11 @@ fun BoxScope.GlobalDialogsHost(
                     val releaseUrl =
                         if (latestUpdateChannel == UpdateChannel.DAILY_NIGHTLY) {
                             Updater.getLatestCanaryDownloadUrl().ifBlank {
-                                "https://github.com/MuwMx/YumaCanary/releases/latest"
+                                Updater.getReleasePageUrl(isCanary = true)
                             }
                         } else {
                             Updater.getLatestDownloadUrl().ifBlank {
-                                "https://github.com/MuwMx/YumaPlayer/releases/latest"
+                                Updater.getReleasePageUrl()
                             }
                         }
                     try {

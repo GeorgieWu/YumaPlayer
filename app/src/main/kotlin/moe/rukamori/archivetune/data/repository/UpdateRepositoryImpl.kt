@@ -16,15 +16,21 @@ import javax.inject.Singleton
 @Singleton
 class UpdateRepositoryImpl @Inject constructor() : UpdateRepository {
 
-    override fun checkForUpdates(channel: UpdateChannel): Flow<AppUpdateInfo?> = flow {
+    override fun checkForUpdates(channel: UpdateChannel): Flow<AppUpdateInfo?> =
+        loadUpdate(channel, forceRefresh = false)
+
+    override fun forceCheckForUpdates(channel: UpdateChannel): Flow<AppUpdateInfo?> =
+        loadUpdate(channel, forceRefresh = true)
+
+    private fun loadUpdate(channel: UpdateChannel, forceRefresh: Boolean): Flow<AppUpdateInfo?> = flow {
         if (!BuildConfig.UPDATER_AVAILABLE) {
             emit(null)
             return@flow
         }
 
         val result = when (channel) {
-            UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestCanaryReleaseInfo()
-            else -> Updater.getLatestReleaseInfo()
+            UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestCanaryReleaseInfo(forceRefresh)
+            else -> Updater.getLatestReleaseInfo(forceRefresh)
         }
 
         result.onSuccess { release ->
@@ -61,57 +67,4 @@ class UpdateRepositoryImpl @Inject constructor() : UpdateRepository {
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun forceCheckForUpdates(channel: UpdateChannel): Flow<AppUpdateInfo?> = flow {
-        if (!BuildConfig.UPDATER_AVAILABLE) {
-            emit(null)
-            return@flow
-        }
-
-        val result = when (channel) {
-            UpdateChannel.DAILY_NIGHTLY -> Updater.getAllCanaryReleases()
-            else -> Updater.getAllReleases(forceRefresh = true)
-        }
-
-        result.onSuccess { releases ->
-            val latest = when (channel) {
-                UpdateChannel.DAILY_NIGHTLY -> releases.firstOrNull()
-                else -> Updater.findLatestRelease(releases)
-            }
-
-            if (latest != null) {
-                val versionName =
-                    if (channel == UpdateChannel.DAILY_NIGHTLY) {
-                        Updater.getCanaryReleaseVersionName(latest)
-                    } else {
-                        Updater.getReleaseVersionName(latest)
-                    }
-                val currentVersion = BuildConfig.VERSION_NAME
-                if (Updater.isUpdateAvailable(versionName, currentVersion)) {
-                    val downloadUrl = when (channel) {
-                        UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestCanaryDownloadUrl()
-                        else -> Updater.getLatestDownloadUrl()
-                    }
-
-                    val isCritical = latest.body?.contains("[CRITICAL]", ignoreCase = true) == true
-
-                    emit(
-                        AppUpdateInfo(
-                            versionCode = 0,
-                            versionName = versionName,
-                            updateUrl = downloadUrl,
-                            isCritical = isCritical,
-                            changelog = MarkdownCleaner.clean(latest.body),
-                            imageUrl = latest.imageUrl
-                        )
-                    )
-                } else {
-                    emit(null)
-                }
-            } else {
-                emit(null)
-            }
-        }.onFailure {
-            emit(null)
-        }
-    }.flowOn(Dispatchers.IO)
 }

@@ -119,7 +119,7 @@ fun SettingsScreen(
                         navController.navigate("settings/update")
                     } else {
                         val releaseUrl = Updater.getLatestDownloadUrl().ifBlank {
-                            "https://github.com/MuwMx/YumaPlayer/releases/latest"
+                            Updater.getReleasePageUrl()
                         }
                         try {
                             uriHandler.openUri(releaseUrl)

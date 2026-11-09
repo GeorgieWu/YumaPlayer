@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.crossfade
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.BuildConfig
 import moe.rukamori.archivetune.constants.UpdateChannel
 import moe.rukamori.archivetune.ui.settings.SettingsAnimations
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
@@ -103,7 +104,9 @@ internal fun UpdateSummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(SettingsDimensions.SegmentedItemGap),
                 verticalArrangement = Arrangement.spacedBy(SettingsDimensions.SegmentedItemGap),
             ) {
-                StatusBadgeChip(text = channelLabel, iconRes = R.drawable.tune, containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                if (!BuildConfig.FORK_UPDATES) {
+                    StatusBadgeChip(text = channelLabel, iconRes = R.drawable.tune, containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
                 StatusBadgeChip(
                     text = supportingText,
                     iconRes = if (isUpdateAvailable) R.drawable.download else R.drawable.check,

@@ -76,14 +76,14 @@ fun ChangelogScreen(
     suspend fun loadReleases(forceRefresh: Boolean) {
         val result =
             if (channel == UpdateChannel.DAILY_NIGHTLY) {
-                Updater.getAllCanaryReleases()
+                Updater.getAllCanaryReleases(forceRefresh = forceRefresh)
             } else {
                 Updater.getAllReleases(forceRefresh = forceRefresh)
             }
         result
             .onSuccess { rawReleases ->
                 val filteredReleases =
-                    if (channel == UpdateChannel.DAILY_NIGHTLY) {
+                    if (BuildConfig.FORK_UPDATES || channel == UpdateChannel.DAILY_NIGHTLY) {
                         rawReleases
                     } else {
                         rawReleases.filter { !it.prerelease }
@@ -103,7 +103,7 @@ fun ChangelogScreen(
             if (channel == UpdateChannel.DAILY_NIGHTLY) {
                 Updater.getCachedCanaryReleases()
             } else {
-                Updater.getCachedReleases().filter { !it.prerelease }
+                Updater.getCachedReleases().filter { BuildConfig.FORK_UPDATES || !it.prerelease }
             }
         if (cachedReleases.isNotEmpty()) {
             releases = toChangelogReleases(cachedReleases)

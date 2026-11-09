@@ -33,7 +33,7 @@ one worker to bound CI memory usage.
 The only build task is `:app:assembleGmsMobileArm64Release`, with:
 
 - `-PforkCi=true`: enables only this variant and restricts native ABI filters to
-  `arm64-v8a` in Gradle configuration.
+  `arm64-v8a` in Gradle configuration. It also enables the fork update source.
 - `-PforkVersionCode=<code>`: sets the installable version code and appends
   `-fork.<code>` to the upstream version name.
 
@@ -49,12 +49,31 @@ Actions retains the uncompressed APK artifact for 14 days. The prerelease tag is
 Only the APK is uploaded. The workflow does not scan APK contents, run extra
 signature checks, or rebuild for reproducibility checks.
 
+## Update installed fork builds
+
+Fork CI builds check and download updates from `GeorgieWu/YumaPlayer`. Install
+the first APK containing this change manually from the fork's Releases page;
+older installed APKs still check the upstream repository.
+
+The updater accepts the workflow's `fork-v<versionName>` prereleases with a
+matching APK asset and orders them by the numeric `-fork.<code>` suffix. It
+offers only higher codes, even when the upstream version name changes. It uses
+the selected release's asset URL rather than GitHub's stable-only `/latest`
+endpoint. Releases without a matching APK are excluded.
+
+The update page has one fork feed; saved upstream channel preferences do not
+redirect it to upstream. Release notes, download links and commit history use
+the fork (commit history follows `ci-build`). Fork release caches are separate
+from upstream caches, so upgrading cannot reuse an old upstream download URL.
+Keep using the same signing key and workflow version-code sequence for updates.
+
 ## Scope
 
 Application features and upstream updates are integrated on `main`, then merged
-forward into `ci-build`. Both branches share the application code; `ci-build`
-adds only the fork build, signing and release configuration. Do not merge it back
-into `main`. See [the development guide](DEVELOPMENT_GUIDE.md#6-keep-fork-features-in-main)
+forward into `ci-build`. `ci-build` adds the fork build, signing, release and
+update-source integration. This updater integration is exclusive to `ci-build`;
+do not merge this branch back into `main`.
+See [the development guide](DEVELOPMENT_GUIDE.md#6-keep-fork-features-in-main)
 for the branch flow.
 
 This branch keeps only the fork build workflow. It removes the upstream
@@ -63,6 +82,6 @@ update, and separate release automation. This branch-specific CI configuration
 does not replace the upstream workflows retained on `main`; its scheduled
 workflows remain configured there.
 
-Without `forkCi`, local builds retain the upstream variants, ABI settings, and
-debug-signing fallback. The CI configuration itself does not change application
-behavior or the update source; application changes come from `main`.
+Without `forkCi`, local builds retain the upstream variants, ABI settings,
+debug-signing fallback and upstream update sources. Other application changes
+come from `main`.

@@ -116,7 +116,7 @@ object UpdateNotificationManager {
 
                 schedulePeriodicUpdateCheck(context)
 
-                val updateChannel =
+                val savedUpdateChannel =
                     dataStore.data
                         .map {
                             it[UpdateChannelKey]?.let { value ->
@@ -128,6 +128,7 @@ object UpdateNotificationManager {
                             } ?: defaultUpdateChannel
                         }.first()
 
+                val updateChannel = if (BuildConfig.FORK_UPDATES) UpdateChannel.STABLE else savedUpdateChannel
                 if (updateChannel == UpdateChannel.NIGHTLY) return@launch
 
                 val lastCheck = dataStore.data.map { it[LastUpdateCheckKey] ?: 0L }.first()
