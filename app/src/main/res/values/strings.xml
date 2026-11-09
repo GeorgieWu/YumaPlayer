@@ -1306,4 +1306,14 @@
     <string name="canvas_settings_update_failed">Could not update Canvas settings</string>
     <string name="login_missing_datasync_id">YouTube did not provide a DataSyncId. Login could not be completed.</string>
     <string name="youtube_login_failed">YouTube login failed. Please try again.</string>
+    <string name="settings_graphics_title">Graphics &amp; Performance</string>
+    <string name="settings_graphics_summary">Blur, procedural backgrounds, refresh rate</string>
+    <string name="settings_graphics_hud_title">Device Load &amp; GPU</string>
+    <string name="settings_graphics_hud_status_optimal">Optimal</string>
+    <string name="settings_graphics_hud_status_alert">Alert</string>
+    <string name="settings_graphics_hud_status_high">High Load</string>
+    <string name="settings_graphics_hud_status_throttle">Throttle</string>
+    <string name="settings_graphics_hud_load_value">Render load: %1$d%%</string>
+    <string name="settings_graphics_blur_group">Blur effects</string>
+    <string name="settings_graphics_performance_group">Performance &amp; animations</string>
 </resources>

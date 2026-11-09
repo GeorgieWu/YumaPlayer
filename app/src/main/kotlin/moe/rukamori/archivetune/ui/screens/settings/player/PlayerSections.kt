@@ -19,7 +19,7 @@ import androidx.compose.ui.res.stringResource
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.ui.component.PreferenceGroup
 import moe.rukamori.archivetune.ui.component.SwitchPreference
-import moe.rukamori.archivetune.ui.screens.settings.playerAwareBottomPadding
+import moe.rukamori.archivetune.ui.screens.settings.components.playerAwareBottomPadding
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.sponsorblock.SponsorBlockCategoryUiModel
 import moe.rukamori.archivetune.sponsorblock.SponsorBlockSettingsScreenState
@@ -102,10 +102,7 @@ internal fun PlayerSettingsContent(
     onRetry: () -> Unit = {},
 ) {
     Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .playerAwareBottomPadding()
-            .padding(bottom = SettingsDimensions.ScreenBottomPadding),
+        modifier = modifier,
     ) {
         PlayerLosslessSection(state = state, actions = actions)
         PlayerAudioSection(state = state, actions = actions)

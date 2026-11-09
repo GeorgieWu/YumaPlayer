@@ -80,11 +80,15 @@ fun PlayerBackgroundLayers(
     val isLayerOnScreen by remember {
         derivedStateOf { currentExpansionProvider() > 0.005f }
     }
+
     val needsBlur by remember {
         derivedStateOf {
-            (currentState.isBlurBackgroundEnabled || blurOverlayAlpha > 0.005f) && isLayerOnScreen
+            val lyricsFraction = currentLyricsProvider().coerceIn(0f, 1f)
+            val isLyricsFullyOpen = lyricsFraction >= 0.99f
+            (currentState.isBlurBackgroundEnabled || blurOverlayAlpha > 0.005f) && isLayerOnScreen && !isLyricsFullyOpen
         }
     }
+
     val immersiveTransitionAlpha by animateFloatAsState(
         targetValue = if (state.isImmersiveEnabled && !isOverlayVisible) 1f else 0f,
         animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
@@ -92,7 +96,6 @@ fun PlayerBackgroundLayers(
     )
 
     val targetUrl = state.coverUrl.trim().takeIf(String::isNotBlank)
-
 
     key(state.trackUrl) {
         PlayerPaletteExtractor(
@@ -102,8 +105,6 @@ fun PlayerBackgroundLayers(
         )
     }
 
-
-    // ПОСТАВИТЬ:
     val animatedBgColor by animateColorAsState(
         targetValue = gradientColor,
         animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
@@ -164,7 +165,10 @@ fun PlayerBackgroundLayers(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = blurOverlayAlpha }
+                    .graphicsLayer {
+                        val lyricsFraction = currentLyricsProvider().coerceIn(0f, 1f)
+                        alpha = blurOverlayAlpha * (1f - lyricsFraction)
+                    }
             ) {
                 Box(
                     modifier = Modifier

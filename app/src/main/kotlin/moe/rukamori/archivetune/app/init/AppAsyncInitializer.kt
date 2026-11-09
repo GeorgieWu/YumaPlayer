@@ -1,6 +1,5 @@
 /*
- * YumaPlayer (2026) | Modified work by MuwMix
- * ArchiveTune (2026) | Original work by © Rukamori
+ * YumaPlayer (2026) | Original work by MuwMix
  * GPL-3.0 License | Contributors: see git history
  */
 
@@ -49,6 +48,7 @@ internal fun App.initializeDeferredAsync() {
 
     applicationScope.launch(Dispatchers.IO) {
         try {
+            deviceGraphicsClassifier.applyDefaultPresetIfFirstRun()
             val prefs = dataStore.data.first()
 
             YouTube.locale = YouTube.locale.copy(gl = prefs[ContentCountryKey] ?: YouTubeLocale.DEFAULT_COUNTRY)

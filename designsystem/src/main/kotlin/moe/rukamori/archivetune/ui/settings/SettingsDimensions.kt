@@ -61,6 +61,7 @@ object SettingsDimensions {
     // -- Segmented groups (settings list) ----------------------------------
     val SegmentedGroupHorizontalPadding = 16.dp
     val SegmentedItemGap = 1.5.dp
+    val SegmentGap = SegmentedItemGap
     val SegmentedCornerLarge = 22.dp
     val SegmentedCornerSmall = 5.dp
     val SegmentedItemMinHeight = 72.dp
@@ -126,7 +127,7 @@ object SettingsDimensions {
 
     // -- Yuma glass preferences --------------------------------------------
     val GlassCornerRadius = 18.dp
-    val GlassBorderThickness = 0.5.dp
+    val GlassBorderThickness = 0.dp
     val GlassStartColor = Color(0x1AFFFFFF)
     val GlassEndColor = Color(0x08FFFFFF)
     const val ExpansionThresholdFraction = 0.15f
@@ -140,6 +141,7 @@ object SettingsDimensions {
     const val HazeQualityFraction = 0.33f
     const val HazePureBlackTintAlpha = 0.65f
     const val HazeDefaultTintAlpha = 0.55f
+    val HeaderFadeFeather: Dp = 14.dp
 
     // -- Bottom Sheet ------------------------------------------------------
     val BottomSheetHorizontalPadding = 16.dp
