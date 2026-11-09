@@ -17,17 +17,12 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import dev.chrisbanes.haze.HazeState
-import kotlinx.coroutines.CoroutineScope
 import moe.rukamori.archivetune.R
-import moe.rukamori.archivetune.db.MusicDatabase
-import moe.rukamori.archivetune.home.launchHomeShuffle
 import moe.rukamori.archivetune.musicrecognition.MusicRecognitionRoute
-import moe.rukamori.archivetune.playback.PlayerConnection
 import moe.rukamori.archivetune.ui.component.FloatingNavigationToolbar
 import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.navigation.findTabForRoute
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
-import moe.rukamori.archivetune.home.HomeViewModel
 
 @Composable
 internal fun BoxScope.NavigationToolbarBridge(
@@ -35,6 +30,7 @@ internal fun BoxScope.NavigationToolbarBridge(
     navigationItems: List<Screens>,
     pureBlack: Boolean,
     hazeState: HazeState?,
+    blurNavBar: Boolean,
     blurRadius: Float,
     isMiniPlayerActive: Boolean,
     playerExpansionAnimatable: Animatable<Float, AnimationVector1D>,
@@ -43,10 +39,7 @@ internal fun BoxScope.NavigationToolbarBridge(
     scrollVisibilityFactor: Float,
     floatingToolbarBottomPadding: Dp,
     shouldShowHomeShuffleButton: Boolean,
-    coroutineScope: CoroutineScope,
-    homeViewModel: HomeViewModel,
-    playerConnection: PlayerConnection?,
-    database: MusicDatabase?,
+    onShuffleClick: (() -> Unit)?,
     navController: NavHostController,
     navBackStackEntry: NavBackStackEntry?,
     handlePrimaryNavigationClick: (Screens, Boolean) -> Unit,
@@ -58,6 +51,7 @@ internal fun BoxScope.NavigationToolbarBridge(
         pureBlack = pureBlack,
         capsuleShape = barShape,
         hazeState = hazeState,
+        blurNavBar = blurNavBar,
         blurRadius = blurRadius,
         showBorder = !isMiniPlayerActive || playerExpansionAnimatable.value >= SettingsDimensions.FullyExpandedThreshold,
         blurEnabled = bottomNavigationBarHeight != 0.dp &&
@@ -70,22 +64,10 @@ internal fun BoxScope.NavigationToolbarBridge(
                 .padding(
                     bottom = floatingToolbarBottomPadding,
                 ).height(navVisibleHeight),
-        onShuffleClick =
-            if (shouldShowHomeShuffleButton) {
-                {
-                    launchHomeShuffle(
-                        coroutineScope = coroutineScope,
-                        homeViewModel = homeViewModel,
-                        playerConnection = playerConnection,
-                        database = database,
-                    )
-                }
-            } else {
-                null
-            },
-        shuffleIconRes = if (shouldShowHomeShuffleButton) R.drawable.shuffle else null,
+        onShuffleClick = onShuffleClick,
+        shuffleIconRes = if (onShuffleClick != null) R.drawable.shuffle else null,
         shuffleContentDescription =
-            if (shouldShowHomeShuffleButton) {
+            if (onShuffleClick != null) {
                 stringResource(
                     R.string.shuffle,
                 )

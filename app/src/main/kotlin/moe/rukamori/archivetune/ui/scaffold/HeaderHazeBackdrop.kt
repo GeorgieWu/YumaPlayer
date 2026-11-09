@@ -1,3 +1,8 @@
+/*
+ * YumaPlayer (2026) | Original work by MuwMix
+ * GPL-3.0 License | Contributors: see git history
+ */
+
 package moe.rukamori.archivetune.ui.scaffold
 
 import android.os.Build
@@ -25,8 +30,8 @@ import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import moe.rukamori.archivetune.LocalAnimationsDisabled
 import moe.rukamori.archivetune.constants.AppBarHeight
-import moe.rukamori.archivetune.constants.BlurRadiusKey
 import moe.rukamori.archivetune.constants.BlurNavBarKey
+import moe.rukamori.archivetune.constants.BlurRadiusKey
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.constants.PureBlackKey
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
@@ -59,7 +64,7 @@ fun HeaderHazeBackdrop(
         hazeState != null
 
     val statusBarTop = with(LocalDensity.current) { WindowInsets.systemBars.getTop(this).toDp() }
-    val effectiveHeight = height ?: (AppBarHeight + statusBarTop)
+    val effectiveHeight = (height ?: (AppBarHeight + statusBarTop)) + SettingsDimensions.HeaderFadeFeather
 
     val hazeStyle = if (isBlurActive) {
         remember(surfaceColor, effectiveBlurRadius, effectivePureBlack) {
@@ -94,7 +99,7 @@ fun HeaderHazeBackdrop(
             .fillMaxWidth()
             .height(effectiveHeight)
             .then(
-                if (isBlurActive && hazeStyle != null && hazeState != null) {
+                if (isBlurActive && hazeStyle != null) {
                     Modifier
                         .graphicsLayer {
                             val p = progress()
@@ -119,17 +124,26 @@ fun HeaderHazeBackdrop(
                                 ),
                             ),
                         )
-                } else if (alwaysShowFallback) {
-                    Modifier.background(
-                        Brush.verticalGradient(
-                            listOf(
-                                surfaceColor.copy(alpha = 0.95f),
-                                surfaceColor.copy(alpha = 0.85f),
-                                surfaceColor.copy(alpha = 0.6f),
-                                Color.Transparent,
+                } else if (alwaysShowFallback || !blurNavBar) {
+                    Modifier
+                        .graphicsLayer {
+                            val p = progress()
+                            alpha = if (hasCollapsibleHeader) {
+                                smoothstep(0.70f, 0.95f, p)
+                            } else {
+                                if (alwaysShowFallback) 1f else p
+                            }
+                        }
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    surfaceColor.copy(alpha = 0.95f),
+                                    surfaceColor.copy(alpha = 0.85f),
+                                    surfaceColor.copy(alpha = 0.6f),
+                                    Color.Transparent,
+                                ),
                             ),
-                        ),
-                    )
+                        )
                 } else {
                     Modifier
                 },

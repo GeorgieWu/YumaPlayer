@@ -11,10 +11,13 @@ package moe.rukamori.archivetune.ui.screens.settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +31,11 @@ import moe.rukamori.archivetune.constants.UpdateChannel
 import moe.rukamori.archivetune.ui.component.BottomSheetPage
 import moe.rukamori.archivetune.ui.component.BottomSheetPageState
 import moe.rukamori.archivetune.ui.component.SwitchPreference
+import moe.rukamori.archivetune.ui.screens.settings.components.YumaSettingsScaffold
+import moe.rukamori.archivetune.ui.screens.settings.components.playerAwareBottomInset
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.utils.GitCommit
 import moe.rukamori.archivetune.utils.Updater
@@ -52,6 +59,11 @@ internal fun UpdateScreenContent(
         stringResource(R.string.updates_subtitle_stable)
     }
 
+    val listState = rememberLazyListState()
+    val hazeState = remember { HazeState() }
+    val density = LocalDensity.current
+    val thresholdPx = remember(density) { with(density) { 48.dp.toPx() } }
+
     Box(modifier = Modifier.fillMaxSize()) {
         YumaSettingsScaffold(
             title = {
@@ -63,14 +75,25 @@ internal fun UpdateScreenContent(
             onBackClick = navController::navigateUp,
             onBackLongClick = navController::backToMain,
             scrollable = false,
-        ) {
+            hazeState = hazeState,
+            scrollProgress = {
+                if (listState.firstVisibleItemIndex > 0) 1f else (listState.firstVisibleItemScrollOffset / thresholdPx).coerceIn(0f, 1f)
+            },
+        ) { headerPadding ->
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = SettingsDimensions.ScreenHorizontalPadding),
+                state = listState,
+                contentPadding = PaddingValues(
+                    top = headerPadding.calculateTopPadding() + 8.dp,
+                    bottom = SettingsDimensions.ScreenBottomPadding + playerAwareBottomInset(),
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = SettingsDimensions.ScreenHorizontalPadding)
+                    .hazeSource(hazeState),
                 verticalArrangement = Arrangement.spacedBy(SettingsDimensions.SectionSpacing),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 item {
-                    Spacer(modifier = Modifier.height(4.dp))
                     val isDownloadReady = !isCheckingForUpdate && downloadUrl.isNotBlank() && (isUpdateAvailable || latestVersion != null)
                     UpdateSummaryCard(
                         currentVersion = BuildConfig.VERSION_NAME, latestVersion = latestVersion, updateChannel = updateChannel,

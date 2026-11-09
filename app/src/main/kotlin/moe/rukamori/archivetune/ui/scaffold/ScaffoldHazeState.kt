@@ -3,7 +3,10 @@ package moe.rukamori.archivetune.ui.scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import dev.chrisbanes.haze.HazeState
+
+val LocalScaffoldHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 @Immutable
 internal data class ScaffoldHazeState(
@@ -14,18 +17,16 @@ internal data class ScaffoldHazeState(
 )
 
 @Composable
-internal fun rememberScaffoldHazeState(blurNavBar: Boolean): ScaffoldHazeState {
+internal fun rememberScaffoldHazeState(captureEnabled: Boolean): ScaffoldHazeState {
     val hazeState = remember { HazeState() }
-    val effectiveHazeState = if (blurNavBar) hazeState else null
     val searchHazeState = remember { HazeState() }
-    val effectiveSearchHazeState = if (blurNavBar) searchHazeState else null
 
-    return remember(blurNavBar, hazeState, searchHazeState) {
+    return remember(captureEnabled, hazeState, searchHazeState) {
         ScaffoldHazeState(
             hazeState = hazeState,
-            effectiveHazeState = effectiveHazeState,
+            effectiveHazeState = if (captureEnabled) hazeState else null,
             searchHazeState = searchHazeState,
-            effectiveSearchHazeState = effectiveSearchHazeState,
+            effectiveSearchHazeState = if (captureEnabled) searchHazeState else null,
         )
     }
 }

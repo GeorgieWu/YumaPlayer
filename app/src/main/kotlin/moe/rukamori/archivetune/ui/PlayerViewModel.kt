@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
 import moe.rukamori.archivetune.data.repository.SettingsRepository
+import moe.rukamori.archivetune.di.DefaultDispatcher
+import moe.rukamori.archivetune.di.IoDispatcher
 import moe.rukamori.archivetune.deeplink.ResolveAlbumBrowseIdUseCase
 import moe.rukamori.archivetune.deeplink.ResolveQueueMediaItemUseCase
 import moe.rukamori.archivetune.deeplink.ResolveWatchPlaylistEndpointUseCase
@@ -21,6 +23,7 @@ import moe.rukamori.archivetune.ui.state.PlayerUiState
 import moe.rukamori.archivetune.ui.state.QueueUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -46,16 +49,6 @@ import moe.rukamori.archivetune.utils.LikeSourceResolver
 import moe.rukamori.archivetune.utils.isLocalMediaId
 
 
-private val MascotAssets = listOf(
-    moe.rukamori.archivetune.R.drawable.mascot_1,
-    moe.rukamori.archivetune.R.drawable.mascot_2,
-    moe.rukamori.archivetune.R.drawable.mascot_3,
-    moe.rukamori.archivetune.R.drawable.mascot_4,
-    moe.rukamori.archivetune.R.drawable.mascot_5,
-    moe.rukamori.archivetune.R.drawable.mascot_6,
-    moe.rukamori.archivetune.R.drawable.mascot_7,
-    moe.rukamori.archivetune.R.drawable.mascot_8
-)
 
 /**
  * Единый источник правды и бизнес-логики для плеера Yuma.
@@ -72,6 +65,8 @@ class PlayerViewModel @Inject constructor(
     resolveWatchPlaylistEndpointUseCase: ResolveWatchPlaylistEndpointUseCase? = null,
     lyricsRepository: LyricsRepository? = null,
     lyricsTranslationUseCase: LyricsTranslationUseCase? = null,
+    @IoDispatcher ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    @DefaultDispatcher defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val playerConnection get() = connectionHolder.connection.value
     private val audioPlayer get() = playerConnection?.player
@@ -143,6 +138,8 @@ class PlayerViewModel @Inject constructor(
         uiState = _uiState.asStateFlow(),
         updateUiState = { transform -> _uiState.update(transform) },
         playbackProgressProvider = { _playbackProgress.value },
+        ioDispatcher = ioDispatcher,
+        defaultDispatcher = defaultDispatcher,
     )
 
     val progressTicker = ProgressTicker(
