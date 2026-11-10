@@ -43,6 +43,7 @@ Development rules, standards, step-by-step guides, and agent guidelines.
 - **CODING_STANDARD.md** — Code style, ViewModel conventions, Mappers, and Coroutine safety.
 - **DEVELOPMENT_GUIDE.md** — Step-by-step recipes (adding screens, lyrics providers, new modules).
 - **[FORK_CI.md](./development/FORK_CI.md)** — Build and publish the fork's signed GMS arm64 APK.
+- **PLAYLIST_COPY.md** — How Spotify placeholders, playlist copies and editable Spotify copies work.
 
 ### 3. 🎨 [Design](./design/)
 UI design system, tokens, and component guidelines.
