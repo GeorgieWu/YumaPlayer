@@ -45,6 +45,63 @@ internal fun applyCurrentFirstShuffleOrder(
     return DefaultShuffleOrder(shuffledIndices, randomSeed)
 }
 
+internal fun songsLeftInPlayOrder(
+    timeline: Timeline,
+    currentIndex: Int,
+    shuffle: Boolean,
+    limit: Int,
+): Int {
+    if (timeline.isEmpty || currentIndex !in 0 until timeline.windowCount) return 0
+    var left = 1
+    var index = timeline.getNextWindowIndex(currentIndex, REPEAT_MODE_OFF, shuffle)
+    while (index != C.INDEX_UNSET && left < limit) {
+        left++
+        index = timeline.getNextWindowIndex(index, REPEAT_MODE_OFF, shuffle)
+    }
+    return left
+}
+
+@OptIn(UnstableApi::class)
+internal fun buildAppendShuffleOrder(
+    timeline: Timeline,
+    addedCount: Int,
+    randomSeed: Long = System.currentTimeMillis(),
+): DefaultShuffleOrder? {
+    if (addedCount <= 0 || timeline.isEmpty) return null
+    val playOrder = mutableListOf<Int>()
+    var index = timeline.getFirstWindowIndex(true)
+    while (index != C.INDEX_UNSET) {
+        playOrder += index
+        index = timeline.getNextWindowIndex(index, REPEAT_MODE_OFF, true)
+    }
+    val existing = timeline.windowCount
+    val shuffled = IntArray(playOrder.size + addedCount) { position ->
+        if (position < playOrder.size) playOrder[position] else existing + (position - playOrder.size)
+    }
+    return DefaultShuffleOrder(shuffled, randomSeed)
+}
+
+@OptIn(UnstableApi::class)
+internal fun buildMovedShuffleOrder(
+    timeline: Timeline,
+    fromIndex: Int,
+    toIndex: Int,
+    randomSeed: Long = System.currentTimeMillis(),
+): DefaultShuffleOrder? {
+    if (fromIndex == toIndex || timeline.isEmpty) return null
+    val playOrder = mutableListOf<Int>()
+    var index = timeline.getFirstWindowIndex(true)
+    while (index != C.INDEX_UNSET) {
+        playOrder += index
+        index = timeline.getNextWindowIndex(index, REPEAT_MODE_OFF, true)
+    }
+    val from = playOrder.indexOf(fromIndex)
+    val to = playOrder.indexOf(toIndex)
+    if (from < 0 || to < 0) return null
+    playOrder.add(to, playOrder.removeAt(from))
+    return DefaultShuffleOrder(playOrder.toIntArray(), randomSeed)
+}
+
 @OptIn(UnstableApi::class)
 internal fun buildPlayNextShuffleOrder(
     timeline: Timeline,

@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.source.ShuffleOrder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -32,6 +33,7 @@ import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.playback.queues.EmptyQueue
 import moe.rukamori.archivetune.playback.queues.Queue
 import moe.rukamori.archivetune.playback.queues.YouTubeQueue
+import moe.rukamori.archivetune.spotify.SpotifyPlaceholders
 import moe.rukamori.archivetune.together.TogetherSessionState
 import moe.rukamori.archivetune.utils.get
 import moe.rukamori.archivetune.utils.isLocalMediaId
@@ -66,6 +68,8 @@ internal class QueueAutomixController(
         fun getMediaItemAt(index: Int): MediaItem
         fun addMediaItems(items: List<MediaItem>)
         fun addMediaItems(index: Int, items: List<MediaItem>)
+        fun isShuffleModeEnabled(): Boolean
+        fun setShuffleOrder(shuffleOrder: ShuffleOrder)
         fun removeMediaItem(index: Int)
         fun removeMediaItems(fromIndex: Int, toIndex: Int)
         fun seekToNext()
@@ -132,7 +136,7 @@ internal class QueueAutomixController(
         ) {
             val radioQueue =
                 YouTubeQueue(
-                    endpoint = WatchEndpoint(videoId = currentMediaId),
+                    endpoint = WatchEndpoint(videoId = SpotifyPlaceholders.youtubeIdFor(currentMediaId)),
                     followAutomixPreview = true,
                 )
             val ds = effectiveDataStore
@@ -229,7 +233,8 @@ internal class QueueAutomixController(
         val job =
             scope.launch(start = CoroutineStart.LAZY, context = SilentHandler) {
                 try {
-                    val radioQueue = YouTubeQueue(WatchEndpoint(videoId = currentMeta.id), followAutomixPreview = true)
+                    val seedId = SpotifyPlaceholders.youtubeIdFor(currentMeta.id)
+                    val radioQueue = YouTubeQueue(WatchEndpoint(videoId = seedId), followAutomixPreview = true)
                     val status = withContext(ioDispatcher) { radioQueue.getInitialStatus() }
                     if (!isActive) return@launch
                     val ds = effectiveDataStore
@@ -253,7 +258,10 @@ internal class QueueAutomixController(
                     val wasEndedBeforeMutation = delegate.getPlaybackState() == Player.STATE_ENDED
 
                     if (newItems.isNotEmpty()) {
+                        val shuffleOrder =
+                            if (delegate.isShuffleModeEnabled()) buildAppendShuffleOrder(delegate.getCurrentTimeline(), newItems.size) else null
                         delegate.addMediaItems(newItems)
+                        shuffleOrder?.let(delegate::setShuffleOrder)
                         newItems.forEach {
                             autoAddedMediaIds.add(it.mediaId)
                             delegate.recordAutoAddedMediaId(it.mediaId)
