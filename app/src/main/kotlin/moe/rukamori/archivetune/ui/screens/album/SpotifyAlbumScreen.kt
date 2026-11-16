@@ -52,7 +52,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
@@ -60,9 +62,12 @@ import moe.rukamori.archivetune.ui.main.LocalPlayerConnection
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.DisableBlurKey
 import moe.rukamori.archivetune.extensions.togglePlayPause
+import moe.rukamori.archivetune.spotify.SpotifyMapper
 import moe.rukamori.archivetune.spotify.SpotifyPlaybackResolver
 import moe.rukamori.archivetune.spotify.SpotifyTracksQueue
 import moe.rukamori.archivetune.spotify.models.SpotifyTrack
+import moe.rukamori.archivetune.spotify.sync.SpotifyLibraryMutations
+import moe.rukamori.archivetune.utils.isTrackLiked
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.ImmersiveArtworkTokens
@@ -85,6 +90,11 @@ fun SpotifyAlbumScreen(
     viewModel: SpotifyAlbumViewModel = hiltViewModel(),
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
+    val database = playerConnection.service.database
+    val syncUtils = playerConnection.service.syncUtils
+    val likedKeys by remember(database) {
+        database.likedSpotifyTrackKeys().map { it.toSet() }
+    }.collectAsStateWithLifecycle(initialValue = emptySet())
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isPlaying by playerConnection.isPlaying.collectAsStateWithLifecycle()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
@@ -95,7 +105,10 @@ fun SpotifyAlbumScreen(
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val successState = uiState as? SpotifyAlbumUiState.Success
     val hasHeader = successState != null
-    val hasArtworkBackdrop = hasHeader && successState.album.images.firstOrNull()?.url?.isNotBlank() == true
+    val albumThumbnailUrl = remember(successState?.album) {
+        successState?.album?.let { SpotifyMapper.getAlbumThumbnail(it) }
+    }
+    val hasArtworkBackdrop = hasHeader && !albumThumbnailUrl.isNullOrBlank()
     val headerProgress = rememberHeaderScrollProgress(
         lazyListState = lazyListState,
         hasCollapsibleHeader = hasArtworkBackdrop,
@@ -148,9 +161,7 @@ fun SpotifyAlbumScreen(
         }
     }
 
-    val artworkModel = remember(successState) {
-        successState?.album?.images?.firstOrNull()?.url
-    }
+    val artworkModel = albumThumbnailUrl
     val artworkBackground = rememberArtworkBackground(artworkModel)
 
     Box(modifier = Modifier.fillMaxSize().artworkBackground(artworkBackground)) {
@@ -213,11 +224,18 @@ fun SpotifyAlbumScreen(
                         ) { index, track ->
                             val isActive = remember(track, mediaMetadata) { track.isResolvedAs(mediaMetadata) }
                             val isResolving = resolvingTrackId == track.id
+                            val isLiked = remember(track, likedKeys) { likedKeys.isTrackLiked(track) }
                             SpotifyTrackListItem(
                                 track = track,
                                 albumIndex = track.trackNumber ?: (index + 1),
                                 isActive = isActive || isResolving,
                                 isPlaying = isPlaying && !isResolving,
+                                isLiked = isLiked,
+                                onToggleLike = {
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        SpotifyLibraryMutations.toggleTrackLike(track, database, syncUtils)
+                                    }
+                                },
                                 trailingContent = {
                                     if (isResolving) {
                                         CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))

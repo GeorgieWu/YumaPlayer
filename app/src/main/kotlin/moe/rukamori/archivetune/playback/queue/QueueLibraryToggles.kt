@@ -106,18 +106,27 @@ internal class QueueLibraryToggles(
             queue = delegate.getActiveQueue(),
             isLocal = currentSongSong?.isLocal ?: mediaMetadata.id.isLocalMediaId(),
         )
+        val cleanSpotifyId = LikeSourceResolver.extractCleanSpotifyId(mediaMetadata.spotifyTrackId ?: mediaMetadata.id)
         ioScope.launch {
             try {
                 val song =
                     toggleLikeMutex.withLock {
                         database.withTransaction {
                             val currentSongEntity =
-                                getSongById(mediaMetadata.id)
+                                getSongByMetadata(
+                                    songId = mediaMetadata.id,
+                                    spotifyId = cleanSpotifyId,
+                                    isrc = mediaMetadata.isrc?.takeIf { it.isNotBlank() },
+                                )
                                     ?: run {
                                         insert(mediaMetadata) {
                                             it.copy(isLocal = mediaMetadata.id.isLocalMediaId())
                                         }
-                                        getSongById(mediaMetadata.id)
+                                        getSongByMetadata(
+                                            songId = mediaMetadata.id,
+                                            spotifyId = cleanSpotifyId,
+                                            isrc = mediaMetadata.isrc?.takeIf { it.isNotBlank() },
+                                        ) ?: getSongById(mediaMetadata.id)
                                     }
                                     ?: return@withTransaction null
                             currentSongEntity.song.localToggleLike(source).also(::update)
@@ -127,6 +136,8 @@ internal class QueueLibraryToggles(
                 Timber.tag("MediaNotification").d("toggleLike() successful: song=${song.id}, liked=${song.liked}")
                 val spotifyId = if (!mediaMetadata.spotifyTrackId.isNullOrBlank()) {
                     mediaMetadata.spotifyTrackId
+                } else if (cleanSpotifyId != null && LikeSourceResolver.isSpotifyId(mediaMetadata.id, song.isLocal)) {
+                    cleanSpotifyId
                 } else if (LikeSourceResolver.isSpotifyId(song.id, song.isLocal)) {
                     song.id
                 } else {

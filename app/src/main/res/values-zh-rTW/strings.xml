@@ -459,7 +459,7 @@
     <string name="playback_error_message">訊息</string>
     <string name="playback_error_cause">造成</string>
     <string name="content_language">預設內容語言</string>
-    <string name="content_country">YouTube 地區</string>
+    <string name="content_country">預設內容地區</string>
     <string name="system_default">系統預設</string>
     <string name="enable_proxy">啟用代理</string>
     <string name="internet">網路</string>
@@ -998,4 +998,8 @@
     <string name="unhide">取消隱藏</string>
     <string name="login_missing_datasync_id">未取得 YouTube DataSyncId，無法完成登入。</string>
     <string name="youtube_login_failed">YouTube 登入失敗，請重試。</string>
+    <string name="playback_source">來源</string>
+    <string name="flac_streaming_quality">FLAC 品質 (串流)</string>
+    <string name="flac_download_quality">FLAC 品質 (下載)</string>
+    <string name="folder_persist_failed">無法儲存資料夾權限</string>
 </resources>

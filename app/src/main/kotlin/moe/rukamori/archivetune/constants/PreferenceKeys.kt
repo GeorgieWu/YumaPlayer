@@ -28,6 +28,7 @@ val RandomThemeOnStartupKey = booleanPreferencesKey("randomThemeOnStartup")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")
 val DisableAnimationsKey = booleanPreferencesKey("disableAnimations")
+val DisablePlayerCoverAnimationsKey = booleanPreferencesKey("disablePlayerCoverAnimations")
 val MarqueeEnabledKey = booleanPreferencesKey("marqueeEnabled")
 val SplashOverlayEnabledKey = booleanPreferencesKey("splashOverlayEnabled")
 val SplashShapePreferenceKey = stringPreferencesKey("splashShapePreference")
@@ -291,6 +292,8 @@ enum class AutomixTransitionDuration(val value: String) {
     S4("4"),
     S8("8"),
     S12("12"),
+    S16("16"),
+    S20("20"),
 }
 val AutoLoadMoreKey = booleanPreferencesKey("autoLoadMore")
 val AutoDownloadOnLikeKey = booleanPreferencesKey("autoDownloadOnLike")

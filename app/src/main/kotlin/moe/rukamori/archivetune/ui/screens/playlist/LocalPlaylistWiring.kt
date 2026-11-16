@@ -68,6 +68,7 @@ import moe.rukamori.archivetune.db.MusicDatabase
 import moe.rukamori.archivetune.db.entities.Playlist
 import moe.rukamori.archivetune.db.entities.PlaylistSong
 import moe.rukamori.archivetune.db.entities.PlaylistSongMap
+import moe.rukamori.archivetune.db.entities.Song
 import moe.rukamori.archivetune.extensions.move
 import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.extensions.togglePlayPause
@@ -569,6 +570,11 @@ fun LazyListScope.localPlaylistSongs(
             haptics.longPress()
             if (!searchState.selection) searchState.selection = true
             searchState.selectedSongMapIds = setOf(song.map.id)
+        },
+        onToggleLike = { song ->
+            val s = song.song.localToggleLike(LikeSource.YTM)
+            database.query { update(s) }
+            playerConnection.service.syncUtils.likeSong(s, LikeSource.YTM)
         },
     )
 }

@@ -24,10 +24,18 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
+import androidx.media3.exoplayer.offline.DownloadProgress
+import coil3.SingletonImageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
@@ -47,6 +55,8 @@ import moe.rukamori.archivetune.di.PlayerCache
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.extensions.toEnum
 import moe.rukamori.archivetune.innertube.YouTube
+import moe.rukamori.archivetune.playback.engine.ChunkedDataSource
+import moe.rukamori.archivetune.playback.engine.STREAM_CHUNK_BYTES
 import moe.rukamori.archivetune.playback.resolvers.formatIdForSource
 import moe.rukamori.archivetune.utils.AuthScopedCacheValue
 import moe.rukamori.archivetune.utils.ProxyAuth
@@ -82,6 +92,9 @@ class DownloadUtil
         private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val songUrlCache = ConcurrentHashMap<String, AuthScopedCacheValue>()
         private val downloadExecutor = Executors.newFixedThreadPool(DEFAULT_MAX_PARALLEL_DOWNLOADS)
+        private val downloadPreloadLock = Any()
+        private var downloadPreloadTargetId: String? = null
+        private var downloadPreloadJob: Job? = null
 
         private val mediaOkHttpClient: OkHttpClient by lazy {
             OkHttpClient
@@ -128,6 +141,7 @@ class DownloadUtil
         }
 
         val downloads = MutableStateFlow<Map<String, Download>>(emptyMap())
+        val completedDownloadIds = MutableStateFlow<Set<String>>(emptySet())
 
         private suspend fun resolveDownloadAudioQuality(lowDataModeActive: Boolean): AudioQuality =
             if (lowDataModeActive) {
@@ -185,8 +199,9 @@ class DownloadUtil
                     .Factory()
                     .setCache(playerCache)
                     .setUpstreamDataSourceFactory(
-                        OkHttpDataSource.Factory(
-                            mediaOkHttpClient,
+                        ChunkedDataSource.Factory(
+                            upstream = OkHttpDataSource.Factory(mediaOkHttpClient),
+                            chunkBytes = STREAM_CHUNK_BYTES,
                         ),
                     ).setCacheWriteDataSinkFactory(
                         CacheDataSink.Factory().setCache(playerCache).setBufferSize(DOWNLOAD_WRITE_BUFFER_SIZE),
@@ -227,16 +242,36 @@ class DownloadUtil
                 maxParallelDownloads = DEFAULT_MAX_PARALLEL_DOWNLOADS
                 addListener(
                     object : DownloadManager.Listener {
+                        override fun onInitialized(downloadManager: DownloadManager) {
+                            updateNextDownloadPreload(downloadManager)
+                        }
+
                         override fun onDownloadChanged(
                             downloadManager: DownloadManager,
                             download: Download,
                             finalException: Exception?,
                         ) {
+                            val snapshot = download.toProgressSnapshot()
                             downloads.update { map ->
                                 map.toMutableMap().apply {
-                                    set(download.request.id, download)
+                                    set(download.request.id, snapshot)
                                 }
                             }
+                            if (download.state == Download.STATE_COMPLETED) {
+                                completedDownloadIds.update { it + download.request.id }
+                            } else if (download.state == Download.STATE_FAILED || download.state == Download.STATE_STOPPED) {
+                                completedDownloadIds.update { it - download.request.id }
+                            }
+                            updateNextDownloadPreload(downloadManager)
+                        }
+
+                        override fun onDownloadRemoved(
+                            downloadManager: DownloadManager,
+                            download: Download,
+                        ) {
+                            downloads.update { map -> map - download.request.id }
+                            completedDownloadIds.update { it - download.request.id }
+                            updateNextDownloadPreload(downloadManager)
                         }
                     },
                 )
@@ -245,11 +280,18 @@ class DownloadUtil
         init {
             downloadScope.launch {
                 val result = mutableMapOf<String, Download>()
+                val completed = mutableSetOf<String>()
                 val cursor = downloadManager.downloadIndex.getDownloads()
                 while (cursor.moveToNext()) {
-                    result[cursor.download.request.id] = cursor.download
+                    val download = cursor.download.toProgressSnapshot()
+                    result[download.request.id] = download
+                    if (download.state == Download.STATE_COMPLETED) {
+                        completed.add(download.request.id)
+                    }
                 }
                 downloads.value = result
+                completedDownloadIds.value = completed
+                updateNextDownloadPreload(downloadManager)
             }
             downloadScope.launch {
                 var previousFingerprint: String? = null
@@ -266,6 +308,24 @@ class DownloadUtil
         }
 
         fun getDownload(songId: String): Flow<Download?> = downloads.map { it[songId] }
+
+        private fun Download.toProgressSnapshot(): Download {
+            val progressSnapshot =
+                DownloadProgress().apply {
+                    bytesDownloaded = this@toProgressSnapshot.bytesDownloaded
+                    percentDownloaded = this@toProgressSnapshot.percentDownloaded
+                }
+            return Download(
+                request,
+                state,
+                startTimeMs,
+                updateTimeMs,
+                contentLength,
+                stopReason,
+                failureReason,
+                progressSnapshot,
+            )
+        }
 
         private fun buildSongUrlCacheKey(
             mediaId: String,
@@ -324,13 +384,103 @@ class DownloadUtil
                             }
 
                         upsert(updatedSong)
+
+                        val thumbnailUrl =
+                            getSongByIdBlocking(mediaId)?.song?.thumbnailUrl
+                                ?: playbackData.videoDetails?.thumbnail?.thumbnails?.lastOrNull()?.url
+                        if (!thumbnailUrl.isNullOrBlank()) {
+                            SingletonImageLoader.get(context).enqueue(
+                                ImageRequest.Builder(context)
+                                    .data(thumbnailUrl)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .memoryCachePolicy(CachePolicy.DISABLED)
+                                    .build(),
+                            )
+                        }
                     }
                 }
             }
         }
 
+        private fun updateNextDownloadPreload(downloadManager: DownloadManager) {
+            val currentDownloads = downloadManager.currentDownloads
+            val activeDownloadCount =
+                currentDownloads.count { download ->
+                    download.state == Download.STATE_DOWNLOADING ||
+                        download.state == Download.STATE_RESTARTING
+                }
+            val nextTargetId =
+                if (activeDownloadCount >= DEFAULT_MAX_PARALLEL_DOWNLOADS) {
+                    currentDownloads
+                        .firstOrNull { download -> download.state == Download.STATE_QUEUED }
+                        ?.request
+                        ?.id
+                } else {
+                    null
+                }
+            val jobs =
+                synchronized(downloadPreloadLock) {
+                    if (downloadPreloadTargetId == nextTargetId) return
+
+                    val previousJob = downloadPreloadJob
+                    val nextJob =
+                        nextTargetId?.let { mediaId ->
+                            downloadScope.launch(start = CoroutineStart.LAZY) {
+                                try {
+                                    preloadStreamUrl(mediaId)
+                                } catch (exception: CancellationException) {
+                                    throw exception
+                                } catch (_: Exception) {
+                                } finally {
+                                    val runningJob = currentCoroutineContext()[Job]
+                                    synchronized(downloadPreloadLock) {
+                                        if (downloadPreloadJob === runningJob) {
+                                            downloadPreloadJob = null
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    downloadPreloadTargetId = nextTargetId
+                    downloadPreloadJob = nextJob
+                    previousJob to nextJob
+                }
+            jobs.first?.cancel()
+            jobs.second?.start()
+        }
+
+        private suspend fun preloadStreamUrl(mediaId: String) {
+            if (playerCache.isCached(mediaId, 0, 1)) return
+            val lowDataModeActive = context.isLowDataModeActive()
+            val requestedAudioQuality = resolveDownloadAudioQuality(lowDataModeActive)
+            val streamCacheKey = buildSongUrlCacheKey(mediaId, requestedAudioQuality)
+            val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+            if (songUrlCache[streamCacheKey]?.isValidFor(authFingerprint, YTPlayerUtils.STREAM_URL_EXPIRY_SAFETY_MS) == true) {
+                return
+            }
+            val playbackData =
+                withContext(Dispatchers.IO) {
+                    context.retryWithoutPlaybackLoginContext {
+                        YTPlayerUtils.playerResponseForDownload(
+                            mediaId,
+                            audioQuality = requestedAudioQuality,
+                            connectivityManager = connectivityManager,
+                            networkMetered = lowDataModeActive,
+                        )
+                    }
+                }.getOrNull() ?: return
+            persistPlaybackMetadata(mediaId, playbackData)
+            songUrlCache[streamCacheKey] =
+                AuthScopedCacheValue(
+                    url = playbackData.streamUrl,
+                    expiresAtMs = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+                    authFingerprint = playbackData.authFingerprint,
+                )
+        }
+
         companion object {
-            private const val DEFAULT_MAX_PARALLEL_DOWNLOADS = 6
+            private const val DEFAULT_MAX_PARALLEL_DOWNLOADS = 3
             private const val MAX_IDLE_DOWNLOAD_CONNECTIONS = 12
             private const val MAX_DOWNLOAD_HTTP_REQUESTS = 24
             private const val DOWNLOAD_CONNECTION_KEEP_ALIVE_MINUTES = 5L

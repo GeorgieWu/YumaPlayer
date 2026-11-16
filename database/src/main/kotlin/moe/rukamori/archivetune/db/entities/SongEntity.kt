@@ -51,21 +51,29 @@ data class SongEntity(
     fun localToggleLike(source: LikeSource = LikeSource.YTM): SongEntity {
         return when (source) {
             LikeSource.YTM -> {
-                val newLikedYtm = !likedYtm
+                val wasLiked = likedYtm || liked
+                val newLikedYtm = !wasLiked
+                val newLikedSpotify = if (wasLiked && !likedYtm) false else likedSpotify
+                val newLiked = newLikedYtm || newLikedSpotify
                 copy(
                     likedYtm = newLikedYtm,
-                    liked = newLikedYtm || likedSpotify,
-                    likedDate = if (newLikedYtm) LocalDateTime.now() else if (likedSpotify) likedDate else null,
-                    inLibrary = if (newLikedYtm) (inLibrary ?: LocalDateTime.now()) else inLibrary,
+                    likedSpotify = newLikedSpotify,
+                    liked = newLiked,
+                    likedDate = if (newLiked) (likedDate ?: LocalDateTime.now()) else null,
+                    inLibrary = if (newLiked) (inLibrary ?: LocalDateTime.now()) else inLibrary,
                 )
             }
             LikeSource.SPOTIFY -> {
-                val newLikedSpotify = !likedSpotify
+                val wasLiked = likedSpotify || liked
+                val newLikedSpotify = !wasLiked
+                val newLikedYtm = if (wasLiked && !likedSpotify) false else likedYtm
+                val newLiked = newLikedYtm || newLikedSpotify
                 copy(
                     likedSpotify = newLikedSpotify,
-                    liked = likedYtm || newLikedSpotify,
-                    likedDate = if (newLikedSpotify) LocalDateTime.now() else if (likedYtm) likedDate else null,
-                    inLibrary = if (newLikedSpotify) (inLibrary ?: LocalDateTime.now()) else inLibrary,
+                    likedYtm = newLikedYtm,
+                    liked = newLiked,
+                    likedDate = if (newLiked) (likedDate ?: LocalDateTime.now()) else null,
+                    inLibrary = if (newLiked) (inLibrary ?: LocalDateTime.now()) else inLibrary,
                 )
             }
         }

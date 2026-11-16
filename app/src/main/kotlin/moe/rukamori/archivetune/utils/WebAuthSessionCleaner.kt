@@ -6,8 +6,10 @@
 
 package moe.rukamori.archivetune.utils
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.CookieManager
+import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewDatabase
@@ -15,6 +17,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
+
+fun getCleanChromeUserAgent(context: Context): String {
+    val defaultUa = WebSettings.getDefaultUserAgent(context)
+    return defaultUa
+        .replace("; wv", "")
+        .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+}
 
 fun clearPlaybackWebAuthSession(context: Context) {
     clearWebAuthStorage(context)
@@ -38,6 +47,15 @@ suspend fun clearWebAuthSession(context: Context) {
                 }
             }
         }
+    }
+}
+
+// Compose parents (bottom sheet, pager) otherwise steal vertical drags from the page.
+@SuppressLint("ClickableViewAccessibility")
+fun WebView.keepScrollGestures() {
+    setOnTouchListener { view, _ ->
+        view.parent?.requestDisallowInterceptTouchEvent(true)
+        false
     }
 }
 

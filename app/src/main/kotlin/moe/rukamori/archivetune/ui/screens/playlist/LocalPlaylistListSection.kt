@@ -41,6 +41,7 @@ import androidx.navigation.NavController
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.PlaylistSongSortType
 import moe.rukamori.archivetune.db.entities.PlaylistSong
+import moe.rukamori.archivetune.db.entities.Song
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.SongListItem
@@ -150,6 +151,7 @@ fun LazyItemScope.LocalPlaylistSongItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onToggleLike: (() -> Unit)? = null,
 ) {
     ReorderableItem(
         state = reorderableState,
@@ -192,6 +194,7 @@ fun LazyItemScope.LocalPlaylistSongItem(
                 isActive = isActive,
                 isPlaying = isPlaying,
                 showInLibraryIcon = true,
+                onToggleLike = onToggleLike,
                 trailingContent = {
                     IconButton(
                         onClick = {
@@ -273,6 +276,7 @@ fun LazyListScope.localPlaylistSongs(
     onDeleteSong: (PlaylistSong) -> Unit,
     onSongClick: (index: Int, song: PlaylistSong) -> Unit,
     onSongLongClick: (PlaylistSong) -> Unit,
+    onToggleLike: ((Song) -> Unit)? = null,
 ) {
     itemsIndexed(
         items = songs,
@@ -297,6 +301,7 @@ fun LazyListScope.localPlaylistSongs(
             onDelete = { onDeleteSong(song) },
             onClick = { onSongClick(index, song) },
             onLongClick = { onSongLongClick(song) },
+            onToggleLike = onToggleLike?.let { toggle -> { toggle(song.song) } },
         )
     }
 }

@@ -30,9 +30,11 @@ import moe.rukamori.archivetune.spotify.matching.SpotifySearchScorer
 import moe.rukamori.archivetune.spotify.matching.TrackMatcher
 import moe.rukamori.archivetune.spotify.matching.TrackQuery
 import moe.rukamori.archivetune.spotify.models.SpotifyTrack
+import moe.rukamori.archivetune.utils.LikeSourceResolver
 import timber.log.Timber
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 object SpotifyPlaybackResolver {
     private const val CACHE_MAX_SIZE = 512
@@ -74,7 +76,7 @@ object SpotifyPlaybackResolver {
             val bySpotifyId =
                 items
                     .filter { SpotifyPlaceholders.isPlaceholder(it.id) }
-                    .associateBy { it.id.removePrefix(SPOTIFY_PLACEHOLDER_PREFIX) }
+                    .associateBy { LikeSourceResolver.extractCleanSpotifyId(it.id).orEmpty() }
             if (bySpotifyId.isEmpty()) return@withContext emptyMap()
 
             val matches = db.getSpotifyMatches(bySpotifyId.keys.toList())
@@ -160,7 +162,7 @@ object SpotifyPlaybackResolver {
                 databaseRef = database
             }
 
-            val rawSpotifyId = track.id.removePrefix("spotify:track:").removePrefix("spotify:")
+            val rawSpotifyId = LikeSourceResolver.extractCleanSpotifyId(track.id).orEmpty()
 
             mutex.withLock {
                 (cache[rawSpotifyId] ?: cache[track.id])?.let { cached ->
@@ -274,6 +276,7 @@ object SpotifyPlaybackResolver {
                 }.distinct()
 
             val failedSearches = AtomicInteger()
+            val lastFailure = AtomicReference<Throwable?>()
 
             fun decide(candidates: List<SongItem>): SpotifySearchScorer.CandidateDecision<SongItem>? {
                 if (candidates.isEmpty()) return null
@@ -298,22 +301,40 @@ object SpotifyPlaybackResolver {
                 ) ?: strict
             }
 
+            suspend fun executeSearch(
+                searchText: String,
+                mode: SearchMode,
+                useAccountContext: Boolean,
+            ) = when (mode) {
+                SearchMode.SONGS ->
+                    YouTube
+                        .search(
+                            query = searchText,
+                            filter = YouTube.SearchFilter.FILTER_SONG,
+                            useAccountContext = useAccountContext,
+                        )
+                        .map { it.items }
+                SearchMode.SUMMARY ->
+                    YouTube
+                        .searchSummary(query = searchText, useAccountContext = useAccountContext)
+                        .map { page -> page.summaries.flatMap { it.items } }
+            }
+
             suspend fun search(
                 searchText: String,
                 mode: SearchMode,
             ): SpotifySearchScorer.CandidateDecision<SongItem>? {
-                val results =
-                    when (mode) {
-                        SearchMode.SONGS ->
-                            YouTube
-                                .search(query = searchText, filter = YouTube.SearchFilter.FILTER_SONG)
-                                .map { it.items }
-                        SearchMode.SUMMARY ->
-                            YouTube
-                                .searchSummary(searchText)
-                                .map { page -> page.summaries.flatMap { it.items } }
+                var results = executeSearch(searchText, mode, useAccountContext = true)
+                if (results.isFailure) {
+                    val fallbackResults = executeSearch(searchText, mode, useAccountContext = false)
+                    if (fallbackResults.isSuccess) {
+                        results = fallbackResults
+                    } else {
+                        val error = fallbackResults.exceptionOrNull() ?: results.exceptionOrNull()
+                        lastFailure.set(error)
+                        failedSearches.incrementAndGet()
                     }
-                results.onFailure { failedSearches.incrementAndGet() }
+                }
                 return decide(results.getOrNull().orEmpty().filterIsInstance<SongItem>().distinctBy { it.id })
             }
 
@@ -337,7 +358,7 @@ object SpotifyPlaybackResolver {
                     MatchPriority.PLAYING -> {
                         playingSearches.incrementAndGet()
                         try {
-                            searchSemaphore.withPermit { searchAllAtOnce() }
+                            searchSemaphore.withPermit { searchOneByOne() }
                         } finally {
                             playingSearches.decrementAndGet()
                         }
@@ -370,7 +391,10 @@ object SpotifyPlaybackResolver {
                         return@withContext fallback
                     }
                     if (throwOnSearchFailure && failedSearches.get() > 0) {
-                        throw IOException("YouTube search failed for '${track.name}' (${failedSearches.get()} requests)")
+                        throw IOException(
+                            "YouTube search failed for '${track.name}' (${failedSearches.get()} requests)",
+                            lastFailure.get(),
+                        )
                     }
                     Timber.tag("SpotifyMatching").w("REJECTED '${track.name}': no candidate was accepted")
                     return@withContext null

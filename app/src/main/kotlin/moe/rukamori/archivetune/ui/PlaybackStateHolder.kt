@@ -16,6 +16,7 @@ import moe.rukamori.archivetune.playback.PlayerConnection
 import moe.rukamori.archivetune.playback.smart.TrackAnalyzer
 import moe.rukamori.archivetune.ui.player.findCause
 import moe.rukamori.archivetune.ui.state.PlayerUiState
+import moe.rukamori.archivetune.utils.LikeSourceResolver
 import moe.rukamori.archivetune.utils.YTPlayerUtils
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -154,8 +155,14 @@ class PlaybackStateHolder(
                 .filterNotNull()
                 .flatMapLatest { connection ->
                     combine(connection.mediaMetadata, connection.currentSong) { metadata, song ->
-                        if (metadata == null || song == null) return@combine false
-                        song.song.liked
+                        if (metadata == null) return@combine false
+                        if (song != null) return@combine song.song.liked
+                        val cleanSpotifyId = LikeSourceResolver.extractCleanSpotifyId(metadata.spotifyTrackId ?: metadata.id)
+                        connection.service.database.getSongByMetadata(
+                            songId = metadata.id,
+                            spotifyId = cleanSpotifyId,
+                            isrc = metadata.isrc?.takeIf { it.isNotBlank() },
+                        )?.song?.liked == true
                     }
                 }
                 .collect { isLiked ->

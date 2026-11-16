@@ -4,15 +4,6 @@
 
   <h1>YumaPlayer (Yuma)</h1>
 
-   <p align="center">
-    <a href="README.md">
-      <img src="https://img.shields.io/badge/🇺🇸%20English-6366f1?style=for-the-badge&labelColor=1e1e2e" alt="English" />
-    </a>
-    <a href="README_RU.md">
-      <img src="https://img.shields.io/badge/🇷🇺%20Русский-6366f1?style=for-the-badge&labelColor=1e1e2e" alt="Russian" />
-    </a>
-  </p>
-
   <p>
     <strong>A hybrid music client for Android focused on usability, clean aesthetics, and audiophile-grade sound.</strong><br>
     <em>Spotify UI + Discovery Algorithms + YouTube Music Library + Hi-Res Lossless (FLAC) + Smart Automix.</em>
@@ -114,6 +105,15 @@ No subscriptions. No advertisements. Zero telemetry, crash reporters, or third-p
 
 ---
 
+</table>
+
+### 🎬 Feature Walkthrough
+
+https://github.com/user-attachments/assets/d363db0c-522b-4694-bd19-0dd9155ca240
+
+
+---
+
 ## ✨ Key Features
 
 ### 🎛️ Audio Engine & Smart Automix 
@@ -211,7 +211,7 @@ YumaPlayer is organized as a 20-module Clean Architecture project following Unid
 📖 **Detailed Developer Documentation:**
 - [Architecture Overview & Module Graph](docs/architecture/ARCHITECTURE.md)
 - [Architectural Decision Records (ADRs)](docs/architecture/DECISIONS.md)
-- [Yuma Design System Specification (YDS 2.1)](docs/design/YDS.md)
+- [Yuma Design System Specification (YDS 2.2)](docs/design/YDS.md)
 - [Coding Standards & Rules](docs/development/YUMA_RULES.md)
 
 ---
@@ -290,6 +290,7 @@ YumaPlayer is built on the shoulders of the open-source community:
 
 - **[ArchiveTune](https://github.com/rukamori/ArchiveTune)** — for the solid playback foundations, rich settings base, and core architecture.
 - **[Meld](https://github.com/FrancescoGrazioso/Meld)** — for the conceptual breakthrough and implementation of the Spotify hybrid integration.
+- **[Mochy Music](https://github.com/realidkroo/Mochy-Music)** — for UI themes, visual styling, and interface components.
 - **[Stash](https://github.com/rawnaldclark/Stash)** — for inspiration in organizing lossless FLAC streaming and download pipelines.
 - **[Metrolist](https://github.com/mostafaalagamy/Metrolist)** & **[SimpMusic](https://github.com/maxrave-dev/SimpMusic)** — for early lyrics parsing and interface inspirations.
 - **[PixelPlayer](https://github.com/theovilardo/PixelPlayer)** — for swipe kinematics ideas and queue structure.
