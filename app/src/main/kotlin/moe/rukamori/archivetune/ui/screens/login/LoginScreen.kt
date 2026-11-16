@@ -18,6 +18,8 @@ import android.webkit.WebResourceResponse
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,14 +43,19 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.R
-import moe.rukamori.archivetune.ui.component.IconButton
-import moe.rukamori.archivetune.ui.utils.backToMain
-import moe.rukamori.archivetune.utils.YouTubeLoginDiagnostics
 import moe.rukamori.archivetune.auth.LoginError
 import moe.rukamori.archivetune.auth.LoginEvent
 import moe.rukamori.archivetune.auth.LoginScreenState
 import moe.rukamori.archivetune.auth.LoginViewModel
+import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.utils.backToMain
+import moe.rukamori.archivetune.utils.getCleanChromeUserAgent
+import moe.rukamori.archivetune.utils.keepScrollGestures
+import moe.rukamori.archivetune.utils.YouTubeLoginDiagnostics
 
 const val LOGIN_ROUTE = "login"
 const val LOGIN_URL_ARGUMENT = "url"
@@ -75,6 +83,7 @@ fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val loginSuccessMessage = stringResource(R.string.login_success)
@@ -123,44 +132,79 @@ fun LoginScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding(),
                 factory = { context ->
                     WebView(context).apply {
                         setBackgroundColor(0)
+                        keepScrollGestures()
                         val cookieManager = CookieManager.getInstance()
+                        var extractionJob: Job? = null
+
+                        fun startSessionExtraction(view: WebView, currentUrl: String?, restart: Boolean = false) {
+                            val isYouTubePage = currentUrl?.contains("youtube.com", ignoreCase = true) == true
+                            mergeYouTubeCookies(cookieManager, currentUrl)?.let { cookie ->
+                                viewModel.onCookiesCaptured(cookie)
+                            }
+                            if (!isYouTubePage) return
+                            if (!restart && extractionJob?.isActive == true) return
+
+                            extractionJob?.cancel()
+                            extractionJob = coroutineScope.launch {
+                                repeat(20) {
+                                    val pageUrl = view.url ?: currentUrl
+                                    val cookie = mergeYouTubeCookies(cookieManager, pageUrl)
+                                    if (cookie != null) {
+                                        viewModel.onCookiesCaptured(cookie)
+                                    }
+                                    view.loadUrl(
+                                        "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var v=c.get('VISITOR_DATA');if(v){Android.onRetrieveVisitorData(v);return}}var y=window.yt&&window.yt.config_;if(y&&y.VISITOR_DATA){Android.onRetrieveVisitorData(y.VISITOR_DATA);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"VISITOR_DATA\":\"([^\"]+)\"/);if(m){Android.onRetrieveVisitorData(m[1]);return}}}catch(e){}})())",
+                                    )
+                                    view.loadUrl(
+                                        "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var d=c.get('DATASYNC_ID');if(d){Android.onRetrieveDataSyncId(d);return}}var y=window.yt&&window.yt.config_;if(y&&y.DATASYNC_ID){Android.onRetrieveDataSyncId(y.DATASYNC_ID);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/[\\\"'](?:DATASYNC_ID|dataSyncId)[\\\"']\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']/);if(m){Android.onRetrieveDataSyncId(m[1]);return}}}catch(e){}})())",
+                                    )
+                                    view.loadUrl(
+                                        "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var t=c.get('PO_TOKEN');if(t){Android.onRetrievePoToken(t);return}}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"PO_TOKEN\":\"([^\"]+)\"/);if(m){Android.onRetrievePoToken(m[1]);return}}}catch(e){}})())",
+                                    )
+                                    if (cookie?.contains("SAPISID") == true && viewModel.screenState.value is LoginScreenState.Success) {
+                                        return@launch
+                                    }
+                                    delay(500L)
+                                }
+                            }
+                        }
+
                         webViewClient =
                             object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                                     shouldBlockYouTubeLoginNavigation(request.url)
 
-                                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                                    if (request.isForMainFrame) YouTubeLoginDiagnostics.event("web_error code=${error.errorCode}")
+                                override fun onReceivedError(
+                                    view: WebView,
+                                    request: WebResourceRequest,
+                                    error: WebResourceError,
+                                ) {
+                                    if (request.isForMainFrame) {
+                                        YouTubeLoginDiagnostics.event("web_error code=${error.errorCode}")
+                                    }
                                 }
 
-                                override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
-                                    if (request.isForMainFrame) YouTubeLoginDiagnostics.event("web_http_error status=${response.statusCode}")
+                                override fun onReceivedHttpError(
+                                    view: WebView,
+                                    request: WebResourceRequest,
+                                    response: WebResourceResponse,
+                                ) {
+                                    if (request.isForMainFrame) {
+                                        YouTubeLoginDiagnostics.event("web_http_error status=${response.statusCode}")
+                                    }
                                 }
 
                                 override fun onPageFinished(
                                     view: WebView,
                                     url: String?,
                                 ) {
-                                    val isYouTubePage = isYouTubeLoginHost(url?.let(Uri::parse)?.host)
-                                    if (isYouTubePage) {
-                                        loadUrl(
-                                            "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var v=c.get('VISITOR_DATA');if(v){Android.onRetrieveVisitorData(v);return}}var y=window.yt&&window.yt.config_;if(y&&y.VISITOR_DATA){Android.onRetrieveVisitorData(y.VISITOR_DATA);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"VISITOR_DATA\":\"([^\"]+)\"/);if(m){Android.onRetrieveVisitorData(m[1]);return}}}catch(e){}})())",
-                                        )
-                                        loadUrl(
-                                            "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var d=c.get('DATASYNC_ID');if(d){Android.onRetrieveDataSyncId(d);return}}var y=window.yt&&window.yt.config_;if(y&&y.DATASYNC_ID){Android.onRetrieveDataSyncId(y.DATASYNC_ID);return}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/[\\\"'](?:DATASYNC_ID|datasyncId|dataSyncId)[\\\"']\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']/);if(m){Android.onRetrieveDataSyncId(m[1]);return}}}catch(e){}})())",
-                                        )
-                                        loadUrl(
-                                            "javascript:void((function(){try{var c=window.ytcfg;if(c&&c.get){var t=c.get('PO_TOKEN');if(t){Android.onRetrievePoToken(t);return}}var s=document.querySelectorAll('script');for(var i=0;i<s.length;i++){var m=s[i].textContent.match(/\"PO_TOKEN\":\"([^\"]+)\"/);if(m){Android.onRetrievePoToken(m[1]);return}}}catch(e){}})())",
-                                        )
-                                    }
-
-                                    mergeYouTubeCookies(cookieManager, url)?.let { cookie ->
-                                        viewModel.onCookiesCaptured(cookie)
-                                    }
+                                    startSessionExtraction(view, url, restart = true)
                                 }
 
                                 override fun doUpdateVisitedHistory(
@@ -169,8 +213,8 @@ fun LoginScreen(
                                     isReload: Boolean,
                                 ) {
                                     super.doUpdateVisitedHistory(view, url, isReload)
-                                    mergeYouTubeCookies(cookieManager, url)?.let { cookie ->
-                                        viewModel.onCookiesCaptured(cookie)
+                                    if (view != null) {
+                                        startSessionExtraction(view, url, restart = false)
                                     }
                                 }
                             }
@@ -181,6 +225,7 @@ fun LoginScreen(
                             setSupportZoom(true)
                             builtInZoomControls = true
                             displayZoomControls = false
+                            userAgentString = getCleanChromeUserAgent(context)
                         }
                         addJavascriptInterface(
                             object {
@@ -252,7 +297,7 @@ private fun mergeYouTubeCookies(
 private fun String?.toYouTubeCookieOrigin(): String? {
     val parsed = this?.let(Uri::parse) ?: return null
     val host = parsed.host?.lowercase() ?: return null
-    if (!isYouTubeLoginHost(host)) return null
+    if (host != "youtube.com" && !host.endsWith(".youtube.com")) return null
 
     val scheme =
         parsed.scheme

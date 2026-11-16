@@ -47,6 +47,8 @@ import moe.rukamori.archivetune.playback.resolvers.formatForSource
 import moe.rukamori.archivetune.playback.resolvers.getFormatForSource
 import moe.rukamori.archivetune.playback.together.requestTogetherControl
 import moe.rukamori.archivetune.playback.queues.Queue
+import moe.rukamori.archivetune.spotify.SpotifyPlaceholders
+import moe.rukamori.archivetune.utils.LikeSourceResolver
 import moe.rukamori.archivetune.utils.reportException
 import java.util.concurrent.ExecutionException
 import jakarta.inject.Inject
@@ -80,8 +82,17 @@ class PlayerConnection(
         )
     val mediaMetadata = service.currentMediaMetadata
     val currentSong =
-        mediaMetadata.flatMapLatest {
-            database.song(it?.id)
+        mediaMetadata.flatMapLatest { metadata ->
+            if (metadata == null) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                val cleanSpotifyId = LikeSourceResolver.extractCleanSpotifyId(metadata.spotifyTrackId ?: metadata.id)
+                database.songByMetadata(
+                    songId = metadata.id,
+                    spotifyId = cleanSpotifyId,
+                    isrc = metadata.isrc?.takeIf { it.isNotBlank() },
+                )
+            }
         }
     val currentLyrics =
         mediaMetadata.flatMapLatest { mediaMetadata ->
@@ -359,8 +370,25 @@ class PlayerConnection(
             } else {
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     val mediaId = mediaMetadata.value?.id ?: return@launch
-                    val source = service.actualPlaybackSources.value[mediaId] ?: service.currentPlaybackSource
-                    val formatEntity = database.getFormatForSource(mediaId, source)
+                    val resolvedId =
+                        if (SpotifyPlaceholders.isPlaceholder(mediaId)) {
+                            val ytId = SpotifyPlaceholders.youtubeIdFor(mediaId)
+                            if (ytId != mediaId) {
+                                ytId
+                            } else {
+                                val cleanSpotifyId = LikeSourceResolver.extractCleanSpotifyId(mediaId) ?: mediaId
+                                database.getSpotifyMatch(cleanSpotifyId)?.youtubeId
+                                    ?: database.getSpotifyMatch(mediaId)?.youtubeId
+                                    ?: mediaId
+                            }
+                        } else {
+                            mediaId
+                        }
+                    val source =
+                        service.actualPlaybackSources.value[mediaId]
+                            ?: service.actualPlaybackSources.value[resolvedId]
+                            ?: service.currentPlaybackSource
+                    val formatEntity = database.getFormatForSource(resolvedId, source)
 
                     if (mediaMetadata.value?.id != mediaId) return@launch
 

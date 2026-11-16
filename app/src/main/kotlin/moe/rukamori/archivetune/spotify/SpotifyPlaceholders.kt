@@ -25,6 +25,7 @@ import moe.rukamori.archivetune.spotify.models.SpotifySimpleAlbum
 import moe.rukamori.archivetune.spotify.models.SpotifySimpleArtist
 import moe.rukamori.archivetune.spotify.models.SpotifyTrack
 import moe.rukamori.archivetune.spotify.parser.SpotifyLocalFile
+import moe.rukamori.archivetune.utils.LikeSourceResolver
 import timber.log.Timber
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -34,14 +35,8 @@ const val SPOTIFY_PLACEHOLDER_PREFIX = "spotify:"
 
 const val SPOTIFY_LOCAL_FILE_PLACEHOLDER_PREFIX = SPOTIFY_PLACEHOLDER_PREFIX + SpotifyLocalFile.ID_PREFIX
 
-fun SpotifyTrack.toPlaceholderId(): String? {
-    val spotifyId =
-        id
-            .removePrefix("spotify:track:")
-            .removePrefix(SPOTIFY_PLACEHOLDER_PREFIX)
-            .trim()
-    return spotifyId.takeIf { it.isNotBlank() }?.let { SPOTIFY_PLACEHOLDER_PREFIX + it }
-}
+fun SpotifyTrack.toPlaceholderId(): String? =
+    LikeSourceResolver.extractCleanSpotifyId(id)?.let { SPOTIFY_PLACEHOLDER_PREFIX + it }
 
 fun SpotifyTrack.toPlaceholderMetadata(): MediaMetadata? {
     val placeholderId = toPlaceholderId() ?: return null
@@ -121,7 +116,8 @@ object SpotifyPlaceholders {
             unmatchedAt.remove(placeholderId)
         } else if (isKnownUnmatched(placeholderId)) {
             val hasStoredMatch = withContext(Dispatchers.IO) {
-                database.getSpotifyMatch(placeholderId.removePrefix(SPOTIFY_PLACEHOLDER_PREFIX)) != null
+                val cleanId = LikeSourceResolver.extractCleanSpotifyId(placeholderId) ?: placeholderId
+                database.getSpotifyMatch(cleanId) != null
             }
             if (!hasStoredMatch) return null
             unmatchedAt.remove(placeholderId)

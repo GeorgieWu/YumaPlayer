@@ -30,6 +30,7 @@ import moe.rukamori.archivetune.spotify.models.SpotifyTrack
 import moe.rukamori.archivetune.ui.component.LibraryEmptyState
 import moe.rukamori.archivetune.ui.component.SpotifyTrackListItem
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
+import moe.rukamori.archivetune.utils.isTrackLiked
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -42,6 +43,8 @@ fun LazyListScope.spotifyLikedTrackList(
     mediaMetadata: MediaMetadata?,
     resolvingTrackId: String?,
     isPlaying: Boolean,
+    likedKeys: Set<String> = emptySet(),
+    onToggleLike: ((SpotifyTrack) -> Unit)? = null,
     onTrackClick: (track: SpotifyTrack, index: Int, isResolved: Boolean) -> Unit,
 ) {
     if (isLoading && tracksIsEmpty) {
@@ -96,11 +99,16 @@ fun LazyListScope.spotifyLikedTrackList(
                 track.isResolvedAs(mediaMetadata)
             }
         val trackIsResolving = resolvingTrackId == track.id
+        val isLiked = remember(track, likedKeys) {
+            if (likedKeys.isEmpty()) true else likedKeys.isTrackLiked(track)
+        }
 
         SpotifyTrackListItem(
             track = track,
             isActive = trackIsActive || trackIsResolving,
             isPlaying = isPlaying && !trackIsResolving,
+            isLiked = isLiked,
+            onToggleLike = onToggleLike?.let { toggle -> { toggle(track) } },
             trailingContent = {
                 if (trackIsResolving) {
                     CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))
