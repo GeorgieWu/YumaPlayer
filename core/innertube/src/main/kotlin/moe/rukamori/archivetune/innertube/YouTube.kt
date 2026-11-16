@@ -94,14 +94,15 @@ object YouTube : YouTubeSearchFacade by SearchClient, YouTubePlayerFacade by Pla
     fun hasLoginCookie(): Boolean = AuthSessionStore.hasLoginCookie()
     fun hasPlaybackLoginContext(): Boolean = AuthSessionStore.hasPlaybackLoginContext()
 
-    internal fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState()): String? =
-        PlayerClient.resolveGvsPoToken(authState)
+    internal fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState(), videoId: String? = null): String? =
+        PlayerClient.resolveGvsPoToken(authState, videoId)
 
     internal fun appendGvsPoToken(
         url: String,
         client: YouTubeClient? = null,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
-    ): String = PlayerClient.appendGvsPoToken(url, client, authState)
+        videoId: String? = null,
+    ): String = PlayerClient.appendGvsPoToken(url, client, authState, videoId)
 
     // Browse operations
     suspend fun album(browseId: String, withSongs: Boolean = true): Result<AlbumPage> =

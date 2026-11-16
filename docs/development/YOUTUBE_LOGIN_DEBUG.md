@@ -44,6 +44,16 @@ Settings → Content → **YouTube region** reuses the existing region preferenc
 
 The selector omits system-default and CN choices. Stored values are read directly, without migration or legacy-value normalization. If an existing installation stores CN or system-default, select US manually. An out-of-list stored value is shown literally so the selector remains usable; it is not silently converted.
 
+## Keep stream caches independent of generated video tokens
+
+`PlaybackAuthState.fingerprint` describes the complete authentication state, including generated tokens. Keep using it for authentication-state comparisons.
+
+Stream URL caches and failed-client backoff use `streamCacheFingerprint` instead. It excludes video-bound generated tokens and their video IDs, so prefetching another video or refreshing a token does not invalidate unrelated URLs or hide a client failure. Playback, download, extractor and prefetch readers and writers must use the same cache identity; `PlaybackData.authFingerprint` carries that identity.
+
+Unlike upstream's session-only cache identity, YumaPlayer also retains legacy and unbound manual tokens and `webClientPoTokenEnabled` in this fingerprint. Changing or removing manual credentials, changing the enable flag, or changing the login session still invalidates cached URLs. Initial automatic enabling or replacing an unbound manual token also changes this identity; subsequent generated-token refreshes do not.
+
+HTTP failure recovery still explicitly removes the failed video's URLs. A googlevideo HTTP 403 additionally invalidates that video's generated token before the existing retry; it does not clear unrelated videos or reset client backoff.
+
 ## Read failure metadata without exporting account data
 
 ```powershell

@@ -19,6 +19,9 @@ data class PlaybackAuthState(
     val poTokenGvs: String? = null,
     val poTokenPlayer: String? = null,
     val webClientPoTokenEnabled: Boolean = false,
+    // Generated tokens are video-bound; null keeps manually configured tokens unbound.
+    val poTokenGvsVideoId: String? = null,
+    val poTokenPlayerVideoId: String? = null,
 ) {
     val hasLoginCookie: Boolean
         get() = hasYouTubeLoginCookie(cookie)
@@ -47,6 +50,23 @@ data class PlaybackAuthState(
                     poTokenGvs.orEmpty(),
                     poTokenPlayer.orEmpty(),
                     webClientPoTokenEnabled.toString(),
+                    poTokenGvsVideoId.orEmpty(),
+                    poTokenPlayerVideoId.orEmpty(),
+                ).joinToString(separator = "\u0000"),
+            )
+
+    /** Session and manual configuration identity, independent of generated video tokens. */
+    val streamCacheFingerprint: String
+        get() =
+            sha1(
+                listOf(
+                    cookie.orEmpty(),
+                    visitorData.orEmpty(),
+                    dataSyncId.orEmpty(),
+                    poToken.orEmpty(),
+                    poTokenGvs.takeIf { poTokenGvsVideoId == null }.orEmpty(),
+                    poTokenPlayer.takeIf { poTokenPlayerVideoId == null }.orEmpty(),
+                    webClientPoTokenEnabled.toString(),
                 ).joinToString(separator = "\u0000"),
             )
 
@@ -58,23 +78,43 @@ data class PlaybackAuthState(
             poToken = poToken.normalizeAuthValue(),
             poTokenGvs = poTokenGvs.normalizeAuthValue(),
             poTokenPlayer = poTokenPlayer.normalizeAuthValue(),
+            poTokenGvsVideoId = poTokenGvsVideoId.normalizeAuthValue(),
+            poTokenPlayerVideoId = poTokenPlayerVideoId.normalizeAuthValue(),
+        )
+
+    fun withVideoPoToken(videoId: String, token: String): PlaybackAuthState =
+        copy(
+            poTokenGvs = token,
+            poTokenGvsVideoId = videoId,
+            poTokenPlayer = token,
+            poTokenPlayerVideoId = videoId,
+            webClientPoTokenEnabled = true,
+        )
+
+    fun withoutVideoPoTokens(videoId: String): PlaybackAuthState =
+        copy(
+            poTokenGvs = poTokenGvs.takeUnless { poTokenGvsVideoId == videoId },
+            poTokenGvsVideoId = poTokenGvsVideoId.takeUnless { it == videoId },
+            poTokenPlayer = poTokenPlayer.takeUnless { poTokenPlayerVideoId == videoId },
+            poTokenPlayerVideoId = poTokenPlayerVideoId.takeUnless { it == videoId },
         )
 
     fun resolvePlayerPoToken(
         client: YouTubeClient,
         explicitPoToken: String? = null,
+        videoId: String? = null,
     ): String? {
         val explicit = explicitPoToken.normalizeAuthValue()
         if (explicit != null) return explicit
         if (!webClientPoTokenEnabled) return null
         if (!needsServiceIntegrity(client)) return null
-        return poTokenPlayer ?: poToken
+        return poTokenPlayer?.takeIf { poTokenPlayerVideoId == null || poTokenPlayerVideoId == videoId } ?: poToken
     }
 
-    fun resolveGvsPoToken(client: YouTubeClient? = null): String? {
+    fun resolveGvsPoToken(client: YouTubeClient? = null, videoId: String? = null): String? {
         if (client != null && !needsServiceIntegrity(client)) return null
         if (!webClientPoTokenEnabled) return null
-        return poTokenGvs ?: poToken
+        return poTokenGvs?.takeIf { poTokenGvsVideoId == null || poTokenGvsVideoId == videoId } ?: poToken
     }
 
     companion object {

@@ -34,20 +34,23 @@ object PlayerClient : YouTubePlayerFacade {
         client: YouTubeClient,
         explicitPoToken: String?,
         authState: PlaybackAuthState,
+        videoId: String? = null,
     ): String? = authState.resolvePlayerPoToken(
         client = client,
         explicitPoToken = explicitPoToken,
+        videoId = videoId,
     )
 
-    internal fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState()): String? =
-        authState.resolveGvsPoToken()
+    internal fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState(), videoId: String? = null): String? =
+        authState.resolveGvsPoToken(videoId = videoId)
 
     internal fun appendGvsPoToken(
         url: String,
         client: YouTubeClient? = null,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
+        videoId: String? = null,
     ): String {
-        val token = authState.resolveGvsPoToken(client) ?: return url
+        val token = authState.resolveGvsPoToken(client, videoId) ?: return url
         if (url.contains("pot=")) return url
 
         val separator = if (url.contains("?")) "&" else "?"
@@ -63,7 +66,7 @@ object PlayerClient : YouTubePlayerFacade {
         setLogin: Boolean,
         authState: PlaybackAuthState,
     ): Result<PlayerResponse> = runCatching {
-        val resolvedPoToken = resolvePlayerPoToken(client, poToken, authState)
+        val resolvedPoToken = resolvePlayerPoToken(client, poToken, authState, videoId)
         innerTube
             .player(
                 client = client,

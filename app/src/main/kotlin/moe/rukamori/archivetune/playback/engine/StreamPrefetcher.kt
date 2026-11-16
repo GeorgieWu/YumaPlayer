@@ -163,9 +163,9 @@ internal class StreamPrefetcher(
 
                 if (streamClient == PlayerStreamClient.ARCHIVETUNE_EXTRACTOR) {
                     val authState = YouTube.currentPlaybackAuthState()
-                    val streamUrl = delegate.streamingExtractionManager.extractAudioUrl(mediaId.toYouTubeWatchUrl(), authState.resolveExtractorPoToken(), authState.resolveExtractorCookies(), authState.resolveExtractorGvsToken())
+                    val streamUrl = delegate.streamingExtractionManager.extractAudioUrl(mediaId.toYouTubeWatchUrl(), authState.resolveExtractorPoToken(mediaId), authState.resolveExtractorCookies(), authState.resolveExtractorGvsToken(mediaId))
                     if (targetGeneration != prefetchTimelineGeneration.get() || !isActive) return@launch
-                    val cacheValue = AuthScopedCacheValue(streamUrl, System.currentTimeMillis() + EXTRACTOR_CACHE_TTL_MS, EXTRACTOR_CACHE_FINGERPRINT_PREFIX + authState.fingerprint)
+                    val cacheValue = AuthScopedCacheValue(streamUrl, System.currentTimeMillis() + EXTRACTOR_CACHE_TTL_MS, EXTRACTOR_CACHE_FINGERPRINT_PREFIX + authState.streamCacheFingerprint)
                     cacheSpec.extractorPlaybackUrlCache[mediaId] = cacheValue
                     downloadUrl = streamUrl
                     targetCacheKey = ytStreamCacheKey(mediaId)
@@ -223,7 +223,7 @@ internal class StreamPrefetcher(
                         }
                     }
                     if (!resolvedFlac) {
-                        val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+                        val authFingerprint = YouTube.currentPlaybackAuthState().streamCacheFingerprint
                         val cached = YouTubeStreamUrlCache.getValidCachedStreamUrl(mediaId, authFingerprint)
                         val storedFormat = if (cached != null) {
                             delegate.database.getFormatById("${mediaId}_${PlaybackSource.YT_MUSIC.name}")

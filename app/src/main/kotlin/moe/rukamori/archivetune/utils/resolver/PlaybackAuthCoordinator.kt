@@ -12,11 +12,17 @@ import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import moe.rukamori.archivetune.utils.BotDetectionPlaybackException
 import moe.rukamori.archivetune.utils.StreamUrlCache
+import moe.rukamori.archivetune.utils.potoken.BotGuardTokenGenerator
 import moe.rukamori.archivetune.utils.reportException
 import timber.log.Timber
 
 object PlaybackAuthCoordinator {
     private const val logTag = "PlaybackAuthCoordinator"
+
+    internal suspend fun invalidateVideoPoTokens(videoId: String) {
+        BotGuardTokenGenerator.invalidatePlayerToken(videoId)
+        YouTube.authState = YouTube.currentPlaybackAuthState().withoutVideoPoTokens(videoId)
+    }
 
     suspend fun recoverFromBadStreamPlayerResponse(videoId: String) {
         val authState = YouTube.currentPlaybackAuthState()
@@ -93,7 +99,7 @@ object PlaybackAuthCoordinator {
 
         if (
             repairedAuthState.visitorData.isNullOrBlank() ||
-            !hasCompleteWebPlaybackPoToken(repairedAuthState)
+            !hasCompleteWebPlaybackPoToken(repairedAuthState, videoId)
         ) {
             repairedAuthState =
                 ensureVisitorDataReady(
@@ -125,10 +131,10 @@ object PlaybackAuthCoordinator {
             hasPlayerPoToken &&
             hasGvsPoToken
 
-    internal fun hasCompleteWebPlaybackPoToken(authState: PlaybackAuthState): Boolean =
+    internal fun hasCompleteWebPlaybackPoToken(authState: PlaybackAuthState, videoId: String? = null): Boolean =
         authState.webClientPoTokenEnabled &&
-            !authState.resolvePlayerPoToken(WEB_REMIX).isNullOrBlank() &&
-            !authState.resolveGvsPoToken(WEB_REMIX).isNullOrBlank()
+            !authState.resolvePlayerPoToken(WEB_REMIX, videoId = videoId).isNullOrBlank() &&
+            !authState.resolveGvsPoToken(WEB_REMIX, videoId).isNullOrBlank()
 
     fun shouldSkipCipheredWebPlaybackCandidate(
         webClientPoTokenEnabled: Boolean,

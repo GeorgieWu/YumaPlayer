@@ -21,9 +21,9 @@ internal fun MusicService.resolveArchiveTuneExtractorDataSpec(
     mediaId: String,
 ): DataSpec {
     val authState = YouTube.currentPlaybackAuthState()
-    val authFingerprint = ArchiveTuneExtractorCacheFingerprintPrefix + authState.fingerprint
-    val userPoToken = authState.resolveExtractorPoToken()
-    val userGvsToken = authState.resolveExtractorGvsToken()
+    val authFingerprint = ArchiveTuneExtractorCacheFingerprintPrefix + authState.streamCacheFingerprint
+    val userPoToken = authState.resolveExtractorPoToken(mediaId)
+    val userGvsToken = authState.resolveExtractorGvsToken(mediaId)
     val userCookies = authState.resolveExtractorCookies()
 
     extractorPlaybackUrlCache[mediaId]

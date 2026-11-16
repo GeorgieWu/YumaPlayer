@@ -159,7 +159,7 @@ class DownloadUtil
             val lowDataModeActive = context.isLowDataModeActive()
             val requestedAudioQuality = resolveDownloadAudioQuality(lowDataModeActive)
             val streamCacheKey = buildSongUrlCacheKey(mediaId, requestedAudioQuality)
-            val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+            val authFingerprint = YouTube.currentPlaybackAuthState().streamCacheFingerprint
             songUrlCache[streamCacheKey]
                 ?.takeIf {
                     it.isValidFor(
@@ -296,7 +296,7 @@ class DownloadUtil
             downloadScope.launch {
                 var previousFingerprint: String? = null
                 YouTube.authStateFlow
-                    .map { it.fingerprint }
+                    .map { it.streamCacheFingerprint }
                     .distinctUntilChanged()
                     .collect { fingerprint ->
                         if (previousFingerprint != null && previousFingerprint != fingerprint) {
@@ -455,7 +455,7 @@ class DownloadUtil
             val lowDataModeActive = context.isLowDataModeActive()
             val requestedAudioQuality = resolveDownloadAudioQuality(lowDataModeActive)
             val streamCacheKey = buildSongUrlCacheKey(mediaId, requestedAudioQuality)
-            val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+            val authFingerprint = YouTube.currentPlaybackAuthState().streamCacheFingerprint
             if (songUrlCache[streamCacheKey]?.isValidFor(authFingerprint, YTPlayerUtils.STREAM_URL_EXPIRY_SAFETY_MS) == true) {
                 return
             }

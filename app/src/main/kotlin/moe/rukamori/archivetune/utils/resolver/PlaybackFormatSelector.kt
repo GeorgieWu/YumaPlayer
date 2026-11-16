@@ -148,10 +148,11 @@ object PlaybackFormatSelector {
         client: YouTubeClient,
         format: PlayerResponse.StreamingData.Format,
         authState: PlaybackAuthState,
+        videoId: String,
     ): Boolean {
         val isWebClient = StreamClientUtils.isWebClient(client.clientName)
         val isCiphered = isCipheredFormat(format)
-        val hasGvsPoToken = !authState.resolveGvsPoToken(client).isNullOrBlank()
+        val hasGvsPoToken = !authState.resolveGvsPoToken(client, videoId).isNullOrBlank()
         if (
             !PlaybackAuthCoordinator.shouldSkipCipheredWebPlaybackCandidate(
                 webClientPoTokenEnabled = authState.webClientPoTokenEnabled,

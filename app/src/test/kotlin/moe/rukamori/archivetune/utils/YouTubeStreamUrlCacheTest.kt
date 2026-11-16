@@ -1,10 +1,17 @@
 package moe.rukamori.archivetune.utils
 
 import android.util.Log
+import android.os.SystemClock
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import moe.rukamori.archivetune.innertube.PlaybackAuthState
+import moe.rukamori.archivetune.innertube.models.YouTubeClient
+import moe.rukamori.archivetune.constants.AudioQuality
 import moe.rukamori.archivetune.playback.resolvers.StreamUrl
+import moe.rukamori.archivetune.utils.resolver.fetcher.PlaybackCandidateUrlResolver
+import moe.rukamori.archivetune.utils.resolver.fetcher.ResolvedStreamCandidate
 import moe.rukamori.archivetune.playback.resolvers.StreamUrlCache as FlacStreamUrlCache
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +30,8 @@ class YouTubeStreamUrlCacheTest {
     @Before
     fun setup() {
         mockkStatic(Log::class)
+        mockkStatic(SystemClock::class)
+        every { SystemClock.elapsedRealtimeNanos() } returns 0L
         every { Log.getStackTraceString(any()) } answers { firstArg<Throwable>().stackTraceToString() }
         StreamUrlCache.clearPlaybackAuthCaches()
     }
@@ -31,6 +40,7 @@ class YouTubeStreamUrlCacheTest {
     fun tearDown() {
         StreamUrlCache.clearPlaybackAuthCaches()
         unmockkStatic(Log::class)
+        unmockkStatic(SystemClock::class)
     }
 
     @Test
@@ -63,6 +73,49 @@ class YouTubeStreamUrlCacheTest {
         val differentAuth = "fingerprint_user_2"
         val cached = StreamUrlCache.getValidCachedStreamUrl(mediaId, differentAuth)
         assertNull(cached)
+    }
+
+    @Test
+    fun generatedTokensForAnotherVideoKeepTheCachedUrlValid() {
+        val authA = PlaybackAuthState(visitorData = "visitor").withVideoPoToken(mediaId, "token-a")
+        StreamUrlCache.putCachedStreamUrl(mediaId, streamUrl, itag, 300, authA.streamCacheFingerprint)
+
+        val authB = authA.withVideoPoToken("other-video", "token-b")
+
+        assertNotNull(StreamUrlCache.getValidCachedStreamUrl(mediaId, authB.streamCacheFingerprint))
+        assertNull(StreamUrlCache.getValidCachedStreamUrl(mediaId, authB.copy(visitorData = "other").streamCacheFingerprint))
+    }
+
+    @Test
+    fun resolvedPlaybackDataAndSharedCacheCarryTheSameStableFingerprint() {
+        val authA = PlaybackAuthState(visitorData = "visitor").withVideoPoToken(mediaId, "token-a")
+        val playbackData = PlaybackCandidateUrlResolver.assemblePlaybackData(
+            videoId = mediaId,
+            resolvedCandidate = ResolvedStreamCandidate(mockk(relaxed = true), streamUrl, 300, YouTubeClient.WEB_REMIX),
+            streamPlayerResponse = null,
+            metadataPlayerResponse = mockk(relaxed = true),
+            audioQuality = AudioQuality.AUTO,
+            authState = authA,
+            fetchAttemptId = 0L,
+            fetchStartNanos = 0L,
+        )
+        val authB = authA.withVideoPoToken("other-video", "token-b")
+
+        assertEquals(authB.streamCacheFingerprint, playbackData.authFingerprint)
+        assertEquals(streamUrl, StreamUrlCache.getValidCachedStreamUrl(mediaId, playbackData.authFingerprint)?.url)
+    }
+
+    @Test
+    fun downloadAndExtractorUrlValuesUseTheSameStableIdentity() {
+        val authA = PlaybackAuthState(visitorData = "visitor").withVideoPoToken(mediaId, "token-a")
+        val authB = authA.withVideoPoToken("other-video", "token-b")
+        val nowMs = 1_000_000L
+
+        listOf("", "archivetune_extractor:").forEach { prefix ->
+            val cached = AuthScopedCacheValue(streamUrl, nowMs + 300_000L, prefix + authA.streamCacheFingerprint)
+            assertEquals(true, cached.isValidFor(prefix + authB.streamCacheFingerprint, nowMs = nowMs))
+            assertEquals(false, cached.isValidFor(prefix + authB.copy(visitorData = "other").streamCacheFingerprint, nowMs = nowMs))
+        }
     }
 
     @Test
@@ -109,13 +162,11 @@ class YouTubeStreamUrlCacheTest {
     @Test
     fun testClearPlaybackAuthCachesWipesAll() {
         StreamUrlCache.putCachedStreamUrl(mediaId, streamUrl, itag, 300, authFingerprint)
-        StreamUrlCache.cachePoToken("session1", "player1", "session1")
         StreamUrlCache.markStreamClientFailed(mediaId, "ANDROID_VR", 403, authFingerprint)
 
         StreamUrlCache.clearPlaybackAuthCaches()
 
         assertNull(StreamUrlCache.getCachedStreamUrl(mediaId))
-        assertNull(StreamUrlCache.getCachedPoToken("session1"))
         assertEquals(false, StreamUrlCache.isStreamClientTemporarilyBlocked(mediaId, "ANDROID_VR", authFingerprint))
     }
 

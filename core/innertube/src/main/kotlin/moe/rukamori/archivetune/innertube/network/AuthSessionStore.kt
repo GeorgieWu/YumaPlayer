@@ -88,12 +88,12 @@ object AuthSessionStore {
     var poTokenGvs: String?
         get() = authState.poTokenGvs
         set(value) {
-            authState = authState.copy(poTokenGvs = value)
+            authState = authState.copy(poTokenGvs = value, poTokenGvsVideoId = null)
         }
     var poTokenPlayer: String?
         get() = authState.poTokenPlayer
         set(value) {
-            authState = authState.copy(poTokenPlayer = value)
+            authState = authState.copy(poTokenPlayer = value, poTokenPlayerVideoId = null)
         }
     var proxy: Proxy?
         get() = innerTube.proxy
@@ -170,25 +170,28 @@ object AuthSessionStore {
         client: YouTubeClient,
         explicitPoToken: String?,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
+        videoId: String? = null,
     ): String? =
         PlayerClient.resolvePlayerPoToken(
             client = client,
             explicitPoToken = explicitPoToken,
             authState = authState,
+            videoId = videoId,
         )
 
     fun hasLoginCookie(): Boolean = authState.hasLoginCookie
 
     fun hasPlaybackLoginContext(): Boolean = authState.hasPlaybackLoginContext
 
-    fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState()): String? =
-        PlayerClient.resolveGvsPoToken(authState)
+    fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState(), videoId: String? = null): String? =
+        PlayerClient.resolveGvsPoToken(authState, videoId)
 
     fun appendGvsPoToken(
         url: String,
         client: YouTubeClient? = null,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
-    ): String = PlayerClient.appendGvsPoToken(url, client, authState)
+        videoId: String? = null,
+    ): String = PlayerClient.appendGvsPoToken(url, client, authState, videoId)
 
     suspend fun visitorData(): Result<String> =
         PlayerClient.visitorData()
