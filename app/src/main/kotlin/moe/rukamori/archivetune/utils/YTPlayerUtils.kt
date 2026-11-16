@@ -18,7 +18,7 @@ import moe.rukamori.archivetune.utils.resolver.PinnedStreamFormat
 
 /**
  * Playback facade coordinating URL caching, stream resolution, and error mapping:
- * - [StreamUrlCache]: stream URL and PoToken caching, expiration and client failure tracking
+ * - [StreamUrlCache]: stream URL caching, expiration and client failure tracking
  * - [PlaybackDataResolver]: candidate resolution, client ordering, format selection and probing
  * - [PlaybackErrorMapper]: playback error classification and recovery
  */
@@ -95,7 +95,7 @@ object YTPlayerUtils {
         videoId: String,
         clientKey: String?,
         httpStatusCode: Int?,
-        authFingerprint: String = YouTube.currentPlaybackAuthState().fingerprint,
+        authFingerprint: String = YouTube.currentPlaybackAuthState().streamCacheFingerprint,
     ) {
         StreamUrlCache.markStreamClientFailed(videoId, clientKey, httpStatusCode, authFingerprint)
     }
@@ -104,7 +104,7 @@ object YTPlayerUtils {
         videoId: String,
         client: PlayerStreamClient,
         httpStatusCode: Int?,
-        authFingerprint: String = YouTube.currentPlaybackAuthState().fingerprint,
+        authFingerprint: String = YouTube.currentPlaybackAuthState().streamCacheFingerprint,
     ) {
         StreamUrlCache.markPreferredClientFailed(videoId, client, httpStatusCode, authFingerprint)
     }
@@ -132,6 +132,7 @@ object YTPlayerUtils {
         val format: PlayerResponse.StreamingData.Format,
         val streamUrl: String,
         val streamExpiresInSeconds: Int,
+        /** Cache identity from [PlaybackAuthState.streamCacheFingerprint]. */
         val authFingerprint: String,
     )
 

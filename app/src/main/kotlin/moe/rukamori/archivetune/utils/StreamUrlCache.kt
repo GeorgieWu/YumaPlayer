@@ -19,7 +19,6 @@ object StreamUrlCache {
     const val FAILED_CLIENT_BACKOFF_MS = 10 * 60 * 1000L
     const val DEFAULT_STREAM_EXPIRE_SECONDS = 300
     const val STREAM_URL_EXPIRY_SAFETY_MS = 60_000L
-    const val PO_TOKEN_VALIDITY_MS = 10 * 60 * 1000L
 
     data class CachedStreamUrl(
         val url: String,
@@ -41,15 +40,8 @@ object StreamUrlCache {
             )
     }
 
-    data class CachedPoToken(
-        val playerToken: String,
-        val sessionToken: String,
-        val expiresAtMs: Long,
-    )
-
     private val streamUrlCache = ConcurrentHashMap<String, CachedStreamUrl>()
     private val failedStreamClientsUntil = ConcurrentHashMap<String, Long>()
-    private val poTokenCache = ConcurrentHashMap<String, CachedPoToken>()
 
     @Volatile
     var lastSuccessfulClientKey: String? = null
@@ -83,23 +75,6 @@ object StreamUrlCache {
         }
         Timber.tag(logTag).w("No expire time available from API or URL, using default: ${DEFAULT_STREAM_EXPIRE_SECONDS}s")
         return DEFAULT_STREAM_EXPIRE_SECONDS
-    }
-
-    fun getCachedPoToken(sessionId: String): CachedPoToken? {
-        val cached = poTokenCache[sessionId] ?: return null
-        if (cached.expiresAtMs < System.currentTimeMillis()) {
-            poTokenCache.remove(sessionId)
-            return null
-        }
-        return cached
-    }
-
-    fun cachePoToken(sessionId: String, playerToken: String, sessionToken: String) {
-        poTokenCache[sessionId] = CachedPoToken(
-            playerToken = playerToken,
-            sessionToken = sessionToken,
-            expiresAtMs = System.currentTimeMillis() + PO_TOKEN_VALIDITY_MS,
-        )
     }
 
     fun getCachedStreamUrl(mediaId: String): CachedStreamUrl? {
@@ -161,7 +136,6 @@ object StreamUrlCache {
         Timber.tag("StreamUrlCache").e("CLEAR_ALL_AUTH CALLED! StackTrace:\n$trace")
         streamUrlCache.clear()
         failedStreamClientsUntil.clear()
-        poTokenCache.clear()
         lastSuccessfulClientKey = null
     }
 
@@ -188,7 +162,7 @@ object StreamUrlCache {
         videoId: String,
         clientKey: String?,
         httpStatusCode: Int?,
-        authFingerprint: String = YouTube.currentPlaybackAuthState().fingerprint,
+        authFingerprint: String = YouTube.currentPlaybackAuthState().streamCacheFingerprint,
     ) {
         if (httpStatusCode !in setOf(403, 404, 410, 416)) return
         val normalizedClientKey = normalizeStreamClientKey(clientKey)
@@ -201,7 +175,7 @@ object StreamUrlCache {
         videoId: String,
         client: PlayerStreamClient,
         httpStatusCode: Int?,
-        authFingerprint: String = YouTube.currentPlaybackAuthState().fingerprint,
+        authFingerprint: String = YouTube.currentPlaybackAuthState().streamCacheFingerprint,
     ) {
         markStreamClientFailed(videoId, client.name, httpStatusCode, authFingerprint)
     }

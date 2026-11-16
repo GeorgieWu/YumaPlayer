@@ -90,14 +90,15 @@ object PlaybackClientSelector {
     fun resolvePreferredPlaybackClient(
         preferredStreamClient: PlayerStreamClient,
         authState: PlaybackAuthState,
+        videoId: String? = null,
     ): YouTubeClient {
         if (
             PlaybackAuthCoordinator.shouldPreferWebRemixForLoggedInPlayback(
                 preferredStreamClient = preferredStreamClient,
                 isLoggedIn = authState.hasPlaybackLoginContext,
                 webClientPoTokenEnabled = authState.webClientPoTokenEnabled,
-                hasPlayerPoToken = !authState.resolvePlayerPoToken(WEB_REMIX).isNullOrBlank(),
-                hasGvsPoToken = !authState.resolveGvsPoToken(WEB_REMIX).isNullOrBlank(),
+                hasPlayerPoToken = !authState.resolvePlayerPoToken(WEB_REMIX, videoId = videoId).isNullOrBlank(),
+                hasGvsPoToken = !authState.resolveGvsPoToken(WEB_REMIX, videoId).isNullOrBlank(),
             )
         ) {
             return WEB_REMIX
@@ -137,8 +138,9 @@ object PlaybackClientSelector {
     fun buildStreamClientOrder(
         preferredStreamClient: PlayerStreamClient,
         authState: PlaybackAuthState,
+        videoId: String? = null,
     ): List<YouTubeClient> {
-        val preferredYouTubeClient = resolvePreferredPlaybackClient(preferredStreamClient, authState)
+        val preferredYouTubeClient = resolvePreferredPlaybackClient(preferredStreamClient, authState, videoId)
         val lastSuccessfulClient =
             StreamUrlCache.lastSuccessfulClientKey?.let { key ->
                 STREAM_FALLBACK_CLIENTS.find { StreamClientUtils.buildClientKey(it) == key }
@@ -155,7 +157,7 @@ object PlaybackClientSelector {
             add(VISIONOS)
 
             lastSuccessfulClient?.let { add(it) }
-            if (authState.hasPlaybackLoginContext && PlaybackAuthCoordinator.hasCompleteWebPlaybackPoToken(authState)) {
+            if (authState.hasPlaybackLoginContext && PlaybackAuthCoordinator.hasCompleteWebPlaybackPoToken(authState, videoId)) {
                 add(WEB_REMIX)
             }
             add(preferredYouTubeClient)

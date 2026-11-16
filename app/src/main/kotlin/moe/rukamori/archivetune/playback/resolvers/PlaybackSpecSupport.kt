@@ -5,13 +5,15 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
-internal fun PlaybackAuthState.resolveExtractorPoToken(): String? =
-    resolveExtractorGvsToken()
-        ?: poTokenPlayer.normalizeExtractorRequestValue()
+internal fun PlaybackAuthState.resolveExtractorPoToken(videoId: String): String? =
+    resolveExtractorGvsToken(videoId)
+        ?: poTokenPlayer.takeIf { poTokenPlayerVideoId == null || poTokenPlayerVideoId == videoId }
+            .normalizeExtractorRequestValue()
 
-internal fun PlaybackAuthState.resolveExtractorGvsToken(): String? =
-    resolveGvsPoToken().normalizeExtractorRequestValue()
-        ?: poTokenGvs.normalizeExtractorRequestValue()
+internal fun PlaybackAuthState.resolveExtractorGvsToken(videoId: String): String? =
+    resolveGvsPoToken(videoId = videoId).normalizeExtractorRequestValue()
+        ?: poTokenGvs.takeIf { poTokenGvsVideoId == null || poTokenGvsVideoId == videoId }
+            .normalizeExtractorRequestValue()
         ?: poToken.normalizeExtractorRequestValue()
 
 internal fun PlaybackAuthState.resolveExtractorCookies(): String? = cookie.normalizeExtractorRequestValue()

@@ -146,6 +146,7 @@ object NewPipeUtils {
                         url = resolvedDirectUrl,
                         client = client,
                         authState = authState,
+                        videoId = videoId,
                     ),
                 )
             }
@@ -164,6 +165,7 @@ object NewPipeUtils {
                         url = resolved,
                         client = client,
                         authState = authState,
+                        videoId = videoId,
                     ),
                 )
             } else {
@@ -194,6 +196,7 @@ object NewPipeUtils {
                     url = resolvedUrl,
                     client = client,
                     authState = authState,
+                    videoId = videoId,
                 ),
             )
         } catch (cancellation: CancellationException) {

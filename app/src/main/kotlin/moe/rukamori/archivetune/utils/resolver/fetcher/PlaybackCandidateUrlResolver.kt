@@ -69,9 +69,9 @@ internal object PlaybackCandidateUrlResolver {
 
         for (candidate in candidates) {
             if (canUseLoggedInPlayback && expectedDurationMs != null && PlaybackFormatSelector.isLikelyPreview(candidate, expectedDurationMs)) continue
-            if (PlaybackFormatSelector.shouldSkipCipheredWebCandidate(client, candidate, authState)) continue
+            if (PlaybackFormatSelector.shouldSkipCipheredWebCandidate(client, candidate, authState, videoId)) continue
 
-            val cached = StreamUrlCache.getValidCachedStreamUrl(videoId, authState.fingerprint)
+            val cached = StreamUrlCache.getValidCachedStreamUrl(videoId, authState.streamCacheFingerprint)
             val candidateUrl =
                 if (cached != null && cached.itag == candidate.itag) {
                     cached.url
@@ -173,7 +173,7 @@ internal object PlaybackCandidateUrlResolver {
             url = streamUrl,
             itag = format.itag,
             expiresInSeconds = streamExpiresInSeconds,
-            authFingerprint = authState.fingerprint,
+            authFingerprint = authState.streamCacheFingerprint,
         )
 
         val finalResponse = streamPlayerResponse ?: metadataPlayerResponse
@@ -184,7 +184,7 @@ internal object PlaybackCandidateUrlResolver {
             format,
             streamUrl,
             streamExpiresInSeconds,
-            authState.fingerprint,
+            authState.streamCacheFingerprint,
         )
     }
 }

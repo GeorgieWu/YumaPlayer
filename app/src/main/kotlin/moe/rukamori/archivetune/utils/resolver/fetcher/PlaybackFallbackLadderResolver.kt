@@ -123,7 +123,7 @@ internal object PlaybackFallbackLadderResolver {
         }
         val metadataClient = metadataResult?.metadataClient
 
-        val preferredYouTubeClient = PlaybackClientSelector.resolvePreferredPlaybackClient(preferredStreamClient, authState)
+        val preferredYouTubeClient = PlaybackClientSelector.resolvePreferredPlaybackClient(preferredStreamClient, authState, videoId)
         if (
             preferredYouTubeClient == WEB_REMIX &&
             preferredStreamClient == PlayerStreamClient.ANDROID_VR &&
@@ -135,7 +135,7 @@ internal object PlaybackFallbackLadderResolver {
             )
         }
 
-        val orderedClients = PlaybackClientSelector.buildStreamClientOrder(preferredStreamClient, authState)
+        val orderedClients = PlaybackClientSelector.buildStreamClientOrder(preferredStreamClient, authState, videoId)
         if (moe.rukamori.archivetune.BuildConfig.DEBUG) {
             moe.rukamori.archivetune.playback.PlaybackTiming.log(
                 "STREAM_CLIENT_ORDER",
@@ -150,7 +150,7 @@ internal object PlaybackFallbackLadderResolver {
                     StreamUrlCache.isStreamClientTemporarilyBlocked(
                         videoId = videoId,
                         clientKey = StreamClientUtils.buildClientKey(client),
-                        authFingerprint = authState.fingerprint,
+                        authFingerprint = authState.streamCacheFingerprint,
                     )
                 if (blocked) {
                     Timber.tag(TAG).w("Temporarily blocked stream client for $videoId: ${PlaybackClientSelector.describeClient(client)}")
@@ -267,7 +267,7 @@ internal object PlaybackFallbackLadderResolver {
                         )
                     val shouldUseWebRemix =
                         repairedAuthState.hasPlaybackLoginContext &&
-                            PlaybackAuthCoordinator.hasCompleteWebPlaybackPoToken(repairedAuthState) &&
+                            PlaybackAuthCoordinator.hasCompleteWebPlaybackPoToken(repairedAuthState, videoId) &&
                             client != WEB_REMIX
 
                     if (repairedAuthState.fingerprint != authState.fingerprint || shouldUseWebRemix) {

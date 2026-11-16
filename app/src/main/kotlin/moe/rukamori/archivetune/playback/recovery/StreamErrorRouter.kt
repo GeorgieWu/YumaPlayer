@@ -15,11 +15,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.innertube.YouTube
+import moe.rukamori.archivetune.playback.engine.extractMediaIdFromCacheKey
 import moe.rukamori.archivetune.spotify.SpotifyPlaceholders
 import moe.rukamori.archivetune.utils.StreamClientUtils
 import moe.rukamori.archivetune.utils.YTPlayerUtils
 import moe.rukamori.archivetune.utils.isLocalMediaId
 import moe.rukamori.archivetune.utils.reportException
+import moe.rukamori.archivetune.utils.resolver.PlaybackAuthCoordinator
 import timber.log.Timber
 
 class StreamErrorRouter(
@@ -234,12 +236,13 @@ class StreamErrorRouter(
     ): Boolean {
         if (isFullyCachedMedia) return false
 
+        val streamMediaId = responseException.dataSpec.key?.let(::extractMediaIdFromCacheKey) ?: mediaId
         val failedUrl = responseException.dataSpec.uri.toString()
         val requestProfile = StreamClientUtils.resolveRequestProfile(failedUrl)
-        val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+        val authFingerprint = YouTube.currentPlaybackAuthState().streamCacheFingerprint
         val extractorAuthFingerprint = EXTRACTOR_CACHE_FINGERPRINT_PREFIX + authFingerprint
-        val cachedFailedUrl = cacheOps.getCachedFailedPlaybackUrl(mediaId, failedUrl)
-        val cachedExtractorFailedUrl = cacheOps.getCachedExtractorFailedPlaybackUrl(mediaId, failedUrl)
+        val cachedFailedUrl = cacheOps.getCachedFailedPlaybackUrl(streamMediaId, failedUrl)
+        val cachedExtractorFailedUrl = cacheOps.getCachedExtractorFailedPlaybackUrl(streamMediaId, failedUrl)
         val failedExpiredUrl =
             YTPlayerUtils.isExpiredOrNearExpiredStreamUrl(failedUrl) ||
                 (
@@ -259,12 +262,12 @@ class StreamErrorRouter(
                     } == true
                 )
 
-        cacheOps.invalidatePlaybackUrlCache(mediaId)
-        cacheOps.invalidateLosslessUrlCache(mediaId)
-        cacheOps.removeExtractorPlaybackUrl(mediaId)
-        YTPlayerUtils.invalidateCachedStreamUrls(mediaId)
+        cacheOps.invalidatePlaybackUrlCache(streamMediaId)
+        cacheOps.invalidateLosslessUrlCache(streamMediaId)
+        cacheOps.removeExtractorPlaybackUrl(streamMediaId)
+        YTPlayerUtils.invalidateCachedStreamUrls(streamMediaId)
         if (!failedExpiredUrl && cachedExtractorFailedUrl == null && requestProfile.clientKey.isNotEmpty()) {
-            YTPlayerUtils.markStreamClientFailed(mediaId, requestProfile.clientKey, responseException.responseCode)
+            YTPlayerUtils.markStreamClientFailed(streamMediaId, requestProfile.clientKey, responseException.responseCode)
         }
 
         if (!playerActions.registerRetryAttempt(mediaId)) {
@@ -277,7 +280,16 @@ class StreamErrorRouter(
             responseException.responseCode,
             requestProfile.variantLabel,
         )
-        playerActions.prepare()
+        if (responseException.responseCode == 403 && responseException.dataSpec.uri.host?.endsWith(".googlevideo.com") == true) {
+            scope.launch {
+                PlaybackAuthCoordinator.invalidateVideoPoTokens(streamMediaId)
+                if (playerActions.currentMediaItem?.mediaId == mediaId) {
+                    playerActions.prepare()
+                }
+            }
+        } else {
+            playerActions.prepare()
+        }
         return true
     }
 

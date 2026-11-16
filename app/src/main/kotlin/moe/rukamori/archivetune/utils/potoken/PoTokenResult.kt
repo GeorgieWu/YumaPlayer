@@ -4,9 +4,8 @@ package moe.rukamori.archivetune.utils.potoken
  * Holds the two PoToken variants produced by a single BotGuard minting cycle.
  *
  * - [playerToken]: bound to a specific video — sent in the player request's
- *   `serviceIntegrityDimensions.poToken`.
- * - [sessionToken]: bound to the visitor/dataSync session — used as the
- *   `pot=` query-parameter on the actual audio stream URL.
+ *   `serviceIntegrityDimensions.poToken` and the stream URL's `pot` parameter.
+ * - [sessionToken]: bound to the visitor/dataSync session, not to a video stream.
  */
 data class PoTokenResult(
     val playerToken: String,

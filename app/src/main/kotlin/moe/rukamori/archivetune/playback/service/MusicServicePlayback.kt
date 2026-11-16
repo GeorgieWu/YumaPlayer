@@ -98,7 +98,7 @@ internal fun MusicService.resolvePlaybackDataSpec(
 
     Timber.tag("PlaybackTiming").i("[$mediaId] START resolvePlaybackDataSpec (allowCache=$allowCacheShortCircuit)")
 
-    val authFingerprint = YouTube.currentPlaybackAuthState().fingerprint
+    val authFingerprint = YouTube.currentPlaybackAuthState().streamCacheFingerprint
     val currentSource = currentPlaybackSource
 
     val memProbeStart = android.os.SystemClock.elapsedRealtime()
