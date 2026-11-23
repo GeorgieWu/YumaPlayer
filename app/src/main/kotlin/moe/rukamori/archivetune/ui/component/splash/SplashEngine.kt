@@ -51,6 +51,8 @@ class SplashEngine {
     internal var slots: List<Offset> = emptyList()
     var phaseElapsedMs: Float = 0f
         private set
+    var currentTimeMs: Long = 0L
+        private set
 
     var memberCount: Int = 0
         private set
@@ -105,6 +107,7 @@ class SplashEngine {
     }
 
     fun update(dt: Float, currentTimeMs: Long) {
+        this.currentTimeMs = currentTimeMs
         val step = (dt * 60f).coerceIn(0.5f, SplashPhysics.MAX_STEP)
         phaseElapsedMs += dt * 1000f
 
@@ -125,7 +128,9 @@ class SplashEngine {
                     isShort -> SplashConfig.Timings.GATHER_SHORT_MS
                     else -> SplashConfig.Timings.GATHER_BOLT_MS
                 }
-                formStrength = min(1f, phaseElapsedMs / gatherLimit)
+                val t = (phaseElapsedMs / gatherLimit).coerceIn(0f, 1f)
+                val easeOut = 1f - (1f - t) * (1f - t) * (1f - t)
+                formStrength = maxOf(formStrength, easeOut)
                 var currentMemberCount = 0
                 var currentTotalDist = 0f
                 for (i in particles.indices) {
@@ -165,9 +170,10 @@ class SplashEngine {
             SplashPhase.Burst -> {
                 val burstLimit = if (isShort) SplashConfig.Timings.BURST_SHORT_MS else SplashConfig.Timings.BURST_FULL_MS
                 val progress = (phaseElapsedMs / burstLimit).coerceIn(0f, 1f)
-                particleScale = 1f - progress * 0.35f
-                particleAlpha = (1f - progress).coerceIn(0f, 1f)
-                formStrength = 1f - progress
+                val fade = (1f - progress) * (1f - progress)
+                particleScale = 1f + progress * SplashConfig.Burst.SCALE_GROWTH
+                particleAlpha = fade.coerceIn(0f, 1f)
+                formStrength = (1f - progress * SplashConfig.Burst.LINK_FADE_MULT).coerceIn(0f, 1f)
                 if (phaseElapsedMs >= burstLimit) {
                     formStrength = 0f
                     setPhase(SplashPhase.Idle)
@@ -191,7 +197,7 @@ class SplashEngine {
 
         shockwave?.let { sw ->
             val newR = sw.radius + sw.maxRadius / SplashConfig.Wave.FRAMES_TO_CROSS * step
-            if (newR >= sw.maxRadius) {
+            if (newR >= sw.maxRadius * SplashConfig.Wave.FADE_END_RATIO) {
                 shockwave = null
             } else {
                 sw.radius = newR
@@ -205,23 +211,7 @@ class SplashEngine {
         SplashPhysics.updateParticles(this, dt, currentTimeMs, step)
     }
 
-    fun triggerBurst() {
-        setPhase(SplashPhase.Burst)
-    }
-
-    fun startGather(newShape: String = SplashSlots.SHAPE_LOGO) {
-        shape = newShape
-        for (i in particles.indices) {
-            val p = particles[i]
-            p.vx *= SplashConfig.Physics.DAMP_ON_REGATHER
-            p.vy *= SplashConfig.Physics.DAMP_ON_REGATHER
-        }
-        rebuildSlots()
-        setPhase(SplashPhase.Gather)
-    }
-
     companion object {
         const val MAX_MEMBERS: Int = 64
-        const val MEMBER_COUNT: Int = 24
     }
 }

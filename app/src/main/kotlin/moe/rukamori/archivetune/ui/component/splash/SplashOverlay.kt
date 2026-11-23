@@ -4,9 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -41,6 +42,7 @@ fun SplashOverlay(
     contentColor: Color? = null,
     primaryColor: Color? = null,
     onBurstStart: () -> Unit = {},
+    onPrewarmStart: () -> Unit = {},
     onDismiss: () -> Unit = {},
 ) {
     val splashOverlayEnabled by rememberPreference(SplashOverlayEnabledKey, defaultValue = true)
@@ -56,6 +58,7 @@ fun SplashOverlay(
         val animationsDisabled = LocalAnimationsDisabled.current
         var showSplash by remember { mutableStateOf(!animationsDisabled) }
         val currentOnBurstStart by rememberUpdatedState(onBurstStart)
+        val currentOnPrewarmStart by rememberUpdatedState(onPrewarmStart)
         val currentOnDismiss by rememberUpdatedState(onDismiss)
         var isInitialized by remember { mutableStateOf(false) }
         var burstTriggered by remember { mutableStateOf(false) }
@@ -88,11 +91,14 @@ fun SplashOverlay(
         }
 
         LaunchedEffect(isReady) {
-            if (isReady && engine.width > 0f && engine.height > 0f && !isInitialized) {
-                engine.density = density
-                engine.shape = initialShape
-                engine.startGather(initialShape)
-                isInitialized = true
+            if (isReady) {
+                currentOnPrewarmStart()
+                if (engine.width > 0f && engine.height > 0f && !isInitialized) {
+                    engine.density = density
+                    engine.shape = initialShape
+                    engine.init(engine.width, engine.height, density)
+                    isInitialized = true
+                }
             }
         }
 
@@ -100,27 +106,27 @@ fun SplashOverlay(
             if (!showSplash || !isReady) return@LaunchedEffect
             var lastTime = 0L
             while (isActive) {
-                withFrameNanos { now ->
-                    if (!isInitialized) return@withFrameNanos
-                    if (lastTime == 0L) {
-                        lastTime = now
-                        return@withFrameNanos
-                    }
-                    val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0f, 0.033f)
+                val now = withFrameNanos { it }
+                if (!isInitialized) continue
+                if (lastTime == 0L) {
                     lastTime = now
-                    engine.update(dt, now / 1_000_000)
-                    frameTick = now
+                    continue
+                }
+                val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0f, 0.033f)
+                lastTime = now
 
-                    val burstLimit = if (engine.isShort) SplashConfig.Timings.BURST_SHORT_MS else SplashConfig.Timings.BURST_FULL_MS
-                    if (engine.currentPhase == SplashPhase.Burst && !burstTriggered && engine.phaseElapsedMs >= burstLimit * SplashConfig.Reveal.START_FRACTION) {
-                        burstTriggered = true
-                        currentOnBurstStart()
-                    }
+                engine.update(dt, now / 1_000_000)
+                frameTick = now
 
-                    if (engine.currentPhase == SplashPhase.Idle && engine.shockwave == null && showSplash) {
-                        showSplash = false
-                        currentOnDismiss()
-                    }
+                val burstLimit = if (engine.isShort) SplashConfig.Timings.BURST_SHORT_MS else SplashConfig.Timings.BURST_FULL_MS
+                if (engine.currentPhase == SplashPhase.Burst && !burstTriggered && engine.phaseElapsedMs >= burstLimit * SplashConfig.Reveal.START_FRACTION) {
+                    burstTriggered = true
+                    currentOnBurstStart()
+                }
+
+                if (engine.currentPhase == SplashPhase.Idle && engine.shockwave == null && showSplash) {
+                    showSplash = false
+                    currentOnDismiss()
                 }
             }
         }
@@ -138,7 +144,7 @@ fun SplashOverlay(
                     onClick = {},
                 ),
         ) {
-            Canvas(
+            Spacer(
                 modifier = Modifier
                     .fillMaxSize()
                     .onSizeChanged { size ->
@@ -149,22 +155,22 @@ fun SplashOverlay(
                             engine.shape = initialShape
                             engine.init(w, h, density)
                             if (isReady && !isInitialized) {
-                                engine.startGather(initialShape)
                                 isInitialized = true
                             }
                         }
+                    }
+                    .drawWithContent {
+                        frameTick
+                        with(renderer) {
+                            render(
+                                engine = engine,
+                                isDark = isDark,
+                                contentColor = resolvedContentColor,
+                                primaryColor = resolvedPrimaryColor,
+                            )
+                        }
                     },
-            ) {
-                frameTick
-                with(renderer) {
-                    render(
-                        engine = engine,
-                        isDark = isDark,
-                        contentColor = resolvedContentColor,
-                        primaryColor = resolvedPrimaryColor,
-                    )
-                }
-            }
+            )
         }
     }
 }
