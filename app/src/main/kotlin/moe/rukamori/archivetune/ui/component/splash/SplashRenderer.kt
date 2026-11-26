@@ -104,6 +104,21 @@ class SplashRenderer {
     private var flashRadiusPx: Float = 0f
     private var linkDistancePx: Float = 0f
 
+    private fun diagonalGleamBoost(
+        x: Float,
+        y: Float,
+        cx: Float,
+        cy: Float,
+        boxSize: Float,
+        gleamProgress: Float,
+    ): Float {
+        if (gleamProgress < 0f || boxSize <= 0f) return 0f
+        val diagNorm = (((-(x - cx) + (y - cy)) / (boxSize * 1.15f)) + 0.5f).coerceIn(0f, 1f)
+        val front = -0.2f + gleamProgress * 1.4f
+        val dist = abs(diagNorm - front)
+        return max(0f, 1f - dist / 0.24f).pow(2)
+    }
+
     fun ensureDensity(density: Float) {
         if (cachedDensity != density) {
             cachedDensity = density
@@ -135,7 +150,7 @@ class SplashRenderer {
             rotate(degrees = swingDeg, pivot = center) {
                 scale(scale = breathScale, pivot = center) {
                     drawFormationLinks(engine, contentColor)
-                    drawParticles(engine, isDark, contentColor)
+                    drawParticles(engine, contentColor)
                     if (engine.phase == "ignite") {
                         drawIgnite(engine, isDark, contentColor, primaryColor)
                     }
@@ -260,7 +275,16 @@ class SplashRenderer {
                     val segNorm = (idx1 + 0.5f) / slotCount.toFloat()
                     var waveDist = abs(segNorm - engine.pulseWave)
                     if (waveDist > 0.5f) waveDist = 1.0f - waveDist
-                    val waveBoost = max(0f, 1f - waveDist / SplashConfig.Look.Links.WAVE_DIST_FACTOR).pow(2)
+                    val pulseBoost = max(0f, 1f - waveDist / SplashConfig.Look.Links.WAVE_DIST_FACTOR).pow(2)
+                    val gleamBoost = diagonalGleamBoost(
+                        x = (p1.x + p2.x) * 0.5f,
+                        y = (p1.y + p2.y) * 0.5f,
+                        cx = center.x,
+                        cy = center.y,
+                        boxSize = boxSize,
+                        gleamProgress = engine.gleamProgress,
+                    )
+                    val waveBoost = max(pulseBoost, gleamBoost * 1.4f)
 
                     val bin = ((rawAlpha + waveBoost * SplashConfig.Look.Links.WAVE_BOOST_BIN).coerceIn(0f, 1f) * LINK_BINS).toInt().coerceIn(0, LINK_BINS - 1)
                     drawLine(
@@ -276,7 +300,6 @@ class SplashRenderer {
 
     fun DrawScope.drawParticles(
         engine: SplashEngine,
-        isDark: Boolean = true,
         contentColor: Color = Color.White
     ) {
         val particles = engine.particles
@@ -288,6 +311,7 @@ class SplashRenderer {
         val slotCount = if (engine.currentShapeData.slots.isNotEmpty()) engine.currentShapeData.slots.size else SplashSlots.SLOT_COUNT
         val maxHalo = maxHaloPx
         val sprite = spriteFor(isCross, contentColor)
+        val boxSize = SplashSlots.boxSize(engine.shape, engine.width, engine.height, density)
 
         for (i in particles.indices) {
             val p = particles[i]
@@ -308,7 +332,16 @@ class SplashRenderer {
                     val slotNorm = p.slotIndex / slotCount.toFloat()
                     var waveDist = abs(slotNorm - engine.pulseWave)
                     if (waveDist > 0.5f) waveDist = 1.0f - waveDist
-                    waveBoost = max(0f, 1f - waveDist / 0.14f).pow(2)
+                    val pulseBoost = max(0f, 1f - waveDist / 0.14f).pow(2)
+                    val gleamBoost = diagonalGleamBoost(
+                        x = p.x,
+                        y = p.y,
+                        cx = center.x,
+                        cy = center.y,
+                        boxSize = boxSize,
+                        gleamProgress = engine.gleamProgress,
+                    )
+                    waveBoost = max(pulseBoost, gleamBoost * 1.1f)
                 }
 
                 val px = p.x
@@ -444,16 +477,16 @@ class SplashRenderer {
     ) {
         val sw = shockwave ?: return
         if (sw.radius <= 0f || sw.maxRadius <= 0f) return
-        val fadeLimit = (sw.maxRadius * SplashConfig.Wave.FADE_END_RATIO).coerceAtLeast(1f)
-        val progress = (sw.radius / fadeLimit).coerceIn(0f, 1f)
-        val fade = (1f - progress).pow(SplashConfig.Wave.FADE_POWER)
+        val t = (sw.elapsedMs / sw.durationMs).coerceIn(0f, 1f)
+        val fade = (1f - t).pow(SplashConfig.Wave.FADE_POWER)
         val effectiveAlpha = (sw.alpha * fade).coerceIn(0f, 1f)
         if (effectiveAlpha <= SplashConfig.Look.Cutoffs.PARTICLE_ALPHA) return
+        val strokePx = (0.8f + (1f - t) * 2.4f) * density
         drawCircle(
             color = color.copy(alpha = effectiveAlpha),
             radius = sw.radius,
             center = Offset(sw.x, sw.y),
-            style = shockwaveStroke,
+            style = Stroke(width = strokePx),
         )
     }
 
@@ -464,7 +497,7 @@ class SplashRenderer {
     ) {
         if (engine.currentPhase != SplashPhase.Burst || engine.phaseElapsedMs > SplashConfig.Look.Flash.DURATION_MS) return
         val progress = (engine.phaseElapsedMs / SplashConfig.Look.Flash.DURATION_MS).coerceIn(0f, 1f)
-        val alpha = SplashConfig.Look.Flash.MAX_ALPHA * (1f - progress)
+        val alpha = SplashConfig.Look.Flash.MAX_ALPHA * (1f - progress).pow(3)
         if (alpha <= SplashConfig.Look.Cutoffs.FLASH_ALPHA) return
         val radius = flashRadiusPx
         val flashColor = if (isDark) Color.White else primaryColor

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import moe.rukamori.archivetune.ui.component.LocalArtistsGrid
 import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.NavigationTitle
 import moe.rukamori.archivetune.ui.haptics.YumaHaptics
+import moe.rukamori.archivetune.ui.navigation.containerTransformSource
 import moe.rukamori.archivetune.ui.menu.ArtistMenu
 import moe.rukamori.archivetune.utils.joinByBullet
 import moe.rukamori.archivetune.utils.makeTimeString
@@ -59,17 +61,22 @@ internal fun LazyListScope.statsArtistsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             rowArtists.forEach { artist ->
+                val context = LocalContext.current
                 LocalArtistsGrid(
                     title = artist.artist.name,
                     subtitle =
                         joinByBullet(
                             pluralStringResource(R.plurals.n_time, artist.songCount, artist.songCount),
-                            makeTimeString(artist.timeListened?.toLong()),
+                            makeTimeString(artist.timeListened?.toLong(), context),
                         ),
                     thumbnailUrl = artist.artist.thumbnailUrl,
                     modifier =
                         Modifier
                             .weight(1f)
+                            .containerTransformSource(
+                                key = "artist-${artist.id}",
+                                coverUrl = artist.artist.thumbnailUrl,
+                            )
                             .combinedClickable(
                                 onClick = { navController.navigate("artist/${artist.id}") },
                                 onLongClick = {

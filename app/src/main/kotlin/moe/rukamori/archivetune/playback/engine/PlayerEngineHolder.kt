@@ -11,23 +11,45 @@ package moe.rukamori.archivetune.playback.engine
 import moe.rukamori.archivetune.playback.engine.*
 
 import android.content.Context
+import android.os.Handler
+import androidx.media3.common.Format
 import androidx.media3.common.Player
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.FormatHolder
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import moe.rukamori.archivetune.audiodsp.AudioDeck
 import moe.rukamori.archivetune.audiodsp.CrossfadeTarget
+import moe.rukamori.archivetune.audiodsp.CustomEqualizerAudioProcessor
 import moe.rukamori.archivetune.audiodsp.DeckController
 import moe.rukamori.archivetune.audiodsp.DjFilterAudioProcessor
 import moe.rukamori.archivetune.audiodsp.DualForwardingPlayer
 import moe.rukamori.archivetune.audiodsp.DualPlayerRoleHolder
+import moe.rukamori.archivetune.audiodsp.EightDAudioProcessor
+import moe.rukamori.archivetune.audiodsp.LoudnessAudioProcessor
+import moe.rukamori.archivetune.audiodsp.ReverbAudioProcessor
+import moe.rukamori.archivetune.audiodsp.SpatialAudioProcessor
+import moe.rukamori.archivetune.audiodsp.StageAudioProcessor
 import moe.rukamori.archivetune.extensions.setOffloadEnabled
 import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.playback.PlaybackConstants
+import moe.rukamori.archivetune.playback.audio.AudioOutputs
+import moe.rukamori.archivetune.playback.audio.PrecisionSink
+import moe.rukamori.archivetune.playback.audio.pass.AudioPass
+import moe.rukamori.archivetune.playback.audio.pass.PassRouterSink
+import moe.rukamori.archivetune.playback.audio.pass.PassSink
+import moe.rukamori.archivetune.playback.crossmix.CrossmixClockSink
+import moe.rukamori.archivetune.playback.crossmix.CrossmixTransitionAudioProcessor
 import moe.rukamori.archivetune.playback.engine.flacCacheKey
 import moe.rukamori.archivetune.playback.engine.flacStreamCacheKey
 import moe.rukamori.archivetune.playback.engine.ytStreamCacheKey
@@ -49,6 +71,7 @@ class PlayerEngineHolder {
     lateinit var player: Player
     lateinit var controller: DeckController
 
+    val isLocalPlayerInitialized: Boolean get() = ::localPlayer.isInitialized
     val isControllerInitialized: Boolean get() = ::controller.isInitialized
     val activeDeck: AudioDeck get() = controller.activeDeck
     val transitionDeck: AudioDeck? get() = if (isControllerInitialized) controller.transitionDeck else null
@@ -66,6 +89,7 @@ class PlayerEngineHolder {
         get() = if (isControllerInitialized) (controller as? ExoDeckController)?.reserveCrossfadePlayer else null
 
     val djFilterByPlayer = ConcurrentHashMap<ExoPlayer, DjFilterAudioProcessor>()
+    val crossmixProcessorByPlayer = ConcurrentHashMap<ExoPlayer, CrossmixTransitionAudioProcessor>()
 
     val mediaOkHttpClient: OkHttpClient by lazy {
         OkHttpClient
@@ -152,6 +176,8 @@ class PlayerEngineHolder {
 
     fun djFilterFor(player: ExoPlayer?): DjFilterAudioProcessor? = player?.let { djFilterByPlayer[it] }
 
+    fun crossmixProcessorFor(player: Player?): CrossmixTransitionAudioProcessor? = player?.let { crossmixProcessorByPlayer[it] }
+
     fun resetDjFilters(vararg players: ExoPlayer?) {
         for (player in players) {
             djFilterFor(player)?.clearAutomation()
@@ -167,8 +193,12 @@ class PlayerEngineHolder {
         to.addListener(listener)
     }
 
-    fun updateAudioOffload(enabled: Boolean, crossfadeEnabled: Boolean) {
-        val effectiveEnabled = enabled && !crossfadeEnabled
+    private var lastEffectiveOffloadEnabled: Boolean? = null
+
+    fun updateAudioOffload(enabled: Boolean, crossfadeEnabled: Boolean, passEngaged: Boolean = false) {
+        val effectiveEnabled = enabled && !crossfadeEnabled && !passEngaged
+        if (lastEffectiveOffloadEnabled == effectiveEnabled) return
+        lastEffectiveOffloadEnabled = effectiveEnabled
         runCatching {
             val builder = localPlayer.trackSelectionParameters.buildUpon()
             val audioOffloadPrefsClass = Class.forName("androidx.media3.common.AudioOffloadPreferences")
@@ -215,19 +245,90 @@ class PlayerEngineHolder {
             ).setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-    fun createRenderersFactory(context: Context, djFilter: DjFilterAudioProcessor) =
+    fun createRenderersFactory(
+        context: Context,
+        djFilter: DjFilterAudioProcessor,
+        customEq: CustomEqualizerAudioProcessor? = null,
+        stage: StageAudioProcessor? = null,
+        spatial: SpatialAudioProcessor? = null,
+        reverb: ReverbAudioProcessor? = null,
+        loudness: LoudnessAudioProcessor? = null,
+        eightD: EightDAudioProcessor? = null,
+        audioOutputs: AudioOutputs? = null,
+        audioPass: AudioPass? = null,
+        crossmixProcessor: CrossmixTransitionAudioProcessor? = null,
+    ) =
         object : DefaultRenderersFactory(context) {
+            private var router: PassRouterSink? = null
+
             override fun buildAudioSink(
                 context: Context,
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParams: Boolean,
-            ) = DefaultAudioSink
-                .Builder(context)
-                .setEnableFloatOutput(false)
-                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                .setAudioProcessorChain(
-                    DefaultAudioSink.DefaultAudioProcessorChain(djFilter),
-                ).build()
+            ): AudioSink {
+                val defaultAudioSink = DefaultAudioSink
+                    .Builder(context)
+                    .setEnableFloatOutput(audioOutputs != null && audioPass != null)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessorChain(
+                        DefaultAudioSink.DefaultAudioProcessorChain(
+                            *listOfNotNull(
+                                djFilter,
+                                customEq,
+                                stage,
+                                spatial,
+                                reverb,
+                                loudness,
+                                eightD,
+                                crossmixProcessor,
+                            ).toTypedArray(),
+                        ),
+                    ).build()
+
+                val baseSink = if (audioOutputs != null && audioPass != null) {
+                    val precision = PrecisionSink(defaultAudioSink, audioOutputs)
+                    PassRouterSink(precision, PassSink(audioPass), audioPass).also { router = it }
+                } else {
+                    defaultAudioSink
+                }
+
+                return if (crossmixProcessor != null) {
+                    CrossmixClockSink(baseSink, crossmixProcessor)
+                } else {
+                    baseSink
+                }
+            }
+
+            override fun buildAudioRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                audioSink: AudioSink,
+                eventHandler: Handler,
+                eventListener: AudioRendererEventListener,
+                out: ArrayList<Renderer>,
+            ) {
+                val songs = router
+                out.add(
+                    object : MediaCodecAudioRenderer(
+                        context,
+                        codecAdapterFactory,
+                        mediaCodecSelector,
+                        enableDecoderFallback,
+                        eventHandler,
+                        eventListener,
+                        audioSink,
+                    ) {
+                        override fun onInputFormatChanged(formatHolder: FormatHolder): DecoderReuseEvaluation? {
+                            songs?.sourceFormat = formatHolder.format
+                            return super.onInputFormatChanged(formatHolder)
+                        }
+                    },
+                )
+            }
+        }.apply {
+            setEnableDecoderFallback(true)
         }
 
     fun releaseReserveAndTransitionDecks() {

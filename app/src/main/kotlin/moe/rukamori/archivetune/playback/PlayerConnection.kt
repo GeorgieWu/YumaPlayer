@@ -120,6 +120,7 @@ class PlayerConnection(
         }
 
     val queueTitle = MutableStateFlow<String?>(null)
+    val queueOriginRoute = MutableStateFlow<String?>(null)
     val queueWindows = MutableStateFlow<List<Timeline.Window>>(emptyList())
     val currentMediaItemIndex = MutableStateFlow(-1)
     val currentWindowIndex = MutableStateFlow(-1)
@@ -144,6 +145,7 @@ class PlayerConnection(
         playWhenReady.value = player.playWhenReady
         playbackParameters.value = player.playbackParameters
         queueTitle.value = service.queueTitle
+        queueOriginRoute.value = service.queueOriginRoute
         queueWindows.value = player.getQueueWindows()
         currentWindowIndex.value = player.getCurrentQueueIndex()
         currentMediaItemIndex.value = player.currentMediaItemIndex
@@ -254,13 +256,35 @@ class PlayerConnection(
         player.playWhenReady = true
     }
 
-    fun seekToPrevious() {
+    fun forceSkipPrevious() {
         val state = service.togetherSessionState.value as? moe.rukamori.archivetune.together.TogetherSessionState.Joined
         if (state?.role is moe.rukamori.archivetune.together.TogetherRole.Guest) {
             service.requestTogetherControl(moe.rukamori.archivetune.together.ControlAction.SkipPrevious)
             return
         }
-        player.seekToPrevious()
+        if (player.hasPreviousMediaItem()) {
+            player.seekToDefaultPosition(player.previousMediaItemIndex)
+        } else {
+            player.seekTo(0L)
+        }
+        player.prepare()
+        player.playWhenReady = true
+    }
+    fun seekToPrevious(forceSkip: Boolean = false) {
+        val state = service.togetherSessionState.value as? moe.rukamori.archivetune.together.TogetherSessionState.Joined
+        if (state?.role is moe.rukamori.archivetune.together.TogetherRole.Guest) {
+            service.requestTogetherControl(moe.rukamori.archivetune.together.ControlAction.SkipPrevious)
+            return
+        }
+        if (forceSkip) {
+            if (player.hasPreviousMediaItem()) {
+                player.seekToDefaultPosition(player.previousMediaItemIndex)
+            } else {
+                player.seekTo(0L)
+            }
+        } else {
+            player.seekToPrevious()
+        }
         player.prepare()
         player.playWhenReady = true
     }
@@ -296,6 +320,7 @@ class PlayerConnection(
     ) {
         queueWindows.value = player.getQueueWindows()
         queueTitle.value = service.queueTitle
+        queueOriginRoute.value = service.queueOriginRoute
         currentMediaItemIndex.value = player.currentMediaItemIndex
         currentWindowIndex.value = player.getCurrentQueueIndex()
         updateCanSkipPreviousAndNext()
@@ -395,7 +420,19 @@ class PlayerConnection(
                     if (mediaMetadata.value?.id != mediaId) return@launch
 
                     if (isLossless && formatEntity != null) {
-                        audioFormat.value = "${formatEntity.codecLabel()} | ${formatEntity.formattedQuality()}"
+                        val quality = formatEntity.formattedQuality()
+                        audioFormat.value = when {
+                            quality != "Unknown" -> "${formatEntity.codecLabel()} | $quality"
+                            foundBitrate > 0 -> {
+                                val bitrateKbps = if (foundBitrate > 2000) foundBitrate / 1000 else foundBitrate
+                                "${formatEntity.codecLabel()} | $bitrateKbps kbps"
+                            }
+                            foundSampleRate > 0 -> {
+                                val khz = (foundSampleRate / 100.0).roundToInt() / 10.0
+                                "${formatEntity.codecLabel()} | $khz kHz"
+                            }
+                            else -> formatEntity.codecLabel()
+                        }
                     } else if (isLossless && formatEntity == null) {
                         if (foundSampleRate > 0) {
                             val khz = (foundSampleRate / 100.0).roundToInt() / 10.0

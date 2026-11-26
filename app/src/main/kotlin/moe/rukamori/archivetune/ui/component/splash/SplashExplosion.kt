@@ -15,10 +15,14 @@ fun SplashEngine.explode(
         val dx = p.x - center.x
         val dy = p.y - center.y
         val dist = hypot(dx, dy) + 0.1f
+        val nx = dx / dist
+        val ny = dy / dist
         val mult = if (memberBoost && p.isMember) SplashConfig.Burst.MEMBER_BOOST else SplashConfig.Burst.FLOATER_BOOST
-        val m = power * mult * (0.5f + Random.nextFloat() * 1.1f)
-        p.vx = (dx / dist) * m + (Random.nextFloat() - 0.5f)
-        p.vy = (dy / dist) * m + (Random.nextFloat() - 0.5f)
+        val depthScale = 0.8f + p.depth * 0.45f
+        val m = power * mult * depthScale * (0.7f + Random.nextFloat() * 0.7f)
+        val swirl = (Random.nextFloat() - 0.5f) * m * 0.12f
+        p.vx = nx * m - ny * swirl
+        p.vy = ny * m + nx * swirl
     }
 }
 

@@ -26,8 +26,10 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import moe.rukamori.archivetune.ui.player.player_0.FullPlayerMotionState
+import moe.rukamori.archivetune.ui.player.player_0.LocalCoverMorphState
 import moe.rukamori.archivetune.ui.player.player_0.PlayerCanvasState
 import moe.rukamori.archivetune.ui.player.player_0.PlayerCoverCard
+import moe.rukamori.archivetune.ui.component.LikeBurstState
 import moe.rukamori.archivetune.ui.player.player_0.PlayerCoverGlow
 import moe.rukamori.archivetune.ui.player.player_0.buttons.PlayerAction
 import moe.rukamori.archivetune.ui.player.player_0.playerArtworkFade
@@ -54,6 +56,7 @@ internal fun FullPlayerCoverSlot(
     queueFractionProvider: () -> Float,
     lyricsFractionProvider: () -> Float = { 0f },
     onAction: (PlayerAction) -> Unit,
+    likeBurst: LikeBurstState? = null,
     modifier: Modifier = Modifier,
 ) {
     val globalDisableAnimations = LocalAnimationsDisabled.current
@@ -66,6 +69,7 @@ internal fun FullPlayerCoverSlot(
     )
     val trackSwitchScale = remember { Animatable(1f) }
     val coroutineScope = rememberCoroutineScope()
+    val coverMorphState = LocalCoverMorphState.current
 
     val isCoverGlowEnabled by remember(
         state.isAlbumCoverGlowEnabled,
@@ -96,7 +100,11 @@ internal fun FullPlayerCoverSlot(
             .padding(horizontal = 22.dp)
             .onGloballyPositioned { slotCoords ->
                 if (rootCoordinates != null && rootCoordinates.isAttached && slotCoords.isAttached) {
-                    cardTopInRoot = rootCoordinates.localPositionOf(slotCoords, Offset.Zero).y
+                    val top = rootCoordinates.localPositionOf(slotCoords, Offset.Zero).y
+                    cardTopInRoot = top
+                    if (top > 0f) {
+                        coverMorphState?.updateCardTopPx(top)
+                    }
                 }
             }
     ) {
@@ -110,6 +118,7 @@ internal fun FullPlayerCoverSlot(
                 .graphicsLayer {
                     val isCoverVisible = !state.isImmersiveEnabled && !motionState.isOverlayVisible
                     val effectiveScale = playPauseScaleState.value * trackSwitchScale.value
+                    coverMorphState?.updateFullCardScale(playPauseScaleState.value)
 
                     val kinematics = calculateCoverKinematics(
                         q = queueFractionProvider().coerceIn(0f, 1f),
@@ -124,11 +133,12 @@ internal fun FullPlayerCoverSlot(
                         extraLiftPx = 40.dp.toPx(),
                         gapPx = 16.dp.toPx(),
                     )
+                    val hideForMorph = !state.isImmersiveEnabled && (coverMorphState?.isMorphActive() == true)
                     transformOrigin = TransformOrigin(0.5f, 0f)
                     scaleX = kinematics.scale
                     scaleY = kinematics.scale
                     translationY = kinematics.translationY
-                    alpha = kinematics.alpha
+                    alpha = if (hideForMorph) 0f else kinematics.alpha
                 }
         ) {
             Box(
@@ -167,7 +177,14 @@ internal fun FullPlayerCoverSlot(
                         }
                     },
                     onNext = { onAction(PlayerAction.Next) },
-                    onPrevious = { onAction(PlayerAction.Previous) }
+                    onPrevious = { onAction(PlayerAction.SkipPrevious) },
+                    onDoubleTap = likeBurst?.let { burst ->
+                        { position ->
+                            burst.likeFromDoubleTap(position, state.isLiked) {
+                                onAction(PlayerAction.Like)
+                            }
+                        }
+                    }
                 )
             }
         }

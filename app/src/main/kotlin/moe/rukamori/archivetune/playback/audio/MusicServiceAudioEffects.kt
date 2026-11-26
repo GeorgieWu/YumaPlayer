@@ -77,6 +77,7 @@ internal fun MusicService.releaseAudioEffects() {
     audioEffectsInitializationJob?.cancel()
     audioEffectsInitializationJob = null
     releaseAudioEffectInstances()
+    releaseEqualizerService()
 }
 
 internal fun MusicService.ensureAudioEffects(sessionId: Int) {
@@ -115,6 +116,13 @@ internal inline fun <T> MusicService.createAudioEffect(
 }.getOrNull()
 
 internal fun MusicService.applyEqSettingsToEffects(settings: EqSettings) {
+    if (isEqualizerServiceActive || audioPass.engaged) {
+        equalizer?.enabled = false
+        bassBoost?.enabled = false
+        virtualizer?.enabled = false
+        loudnessEnhancer?.enabled = false
+        return
+    }
     val eq = equalizer ?: return
     val caps = eqCapabilities.value
     val bandCount = caps?.bandCount ?: readAudioEffectValue("equalizer band count") { eq.numberOfBands.toInt() } ?: 0

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import moe.rukamori.archivetune.ui.component.LocalAlbumsGrid
 import moe.rukamori.archivetune.ui.component.MenuState
 import moe.rukamori.archivetune.ui.component.NavigationTitle
 import moe.rukamori.archivetune.ui.haptics.YumaHaptics
+import moe.rukamori.archivetune.ui.navigation.containerTransformSource
 import moe.rukamori.archivetune.ui.menu.AlbumMenu
 import moe.rukamori.archivetune.utils.joinByBullet
 import moe.rukamori.archivetune.utils.makeTimeString
@@ -57,6 +59,7 @@ internal fun LazyListScope.statsAlbumsSection(
                     key = { _, album -> album.id },
                     contentType = { _, _ -> "album_grid" },
                 ) { index, album ->
+                    val context = LocalContext.current
                     LocalAlbumsGrid(
                         title = "${index + 1}. ${album.album.title}",
                         subtitle =
@@ -66,7 +69,7 @@ internal fun LazyListScope.statsAlbumsSection(
                                     album.songCountListened ?: 0,
                                     album.songCountListened ?: 0,
                                 ),
-                                makeTimeString(album.timeListened?.toLong()),
+                                makeTimeString(album.timeListened?.toLong(), context),
                             ),
                         thumbnailUrl = album.album.thumbnailUrl,
                         isActive = album.id == mediaMetadata?.album?.id,
@@ -74,6 +77,10 @@ internal fun LazyListScope.statsAlbumsSection(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .containerTransformSource(
+                                    key = "album-${album.id}",
+                                    coverUrl = album.album.thumbnailUrl,
+                                )
                                 .combinedClickable(
                                     onClick = { navController.navigate("album/${album.id}") },
                                     onLongClick = {

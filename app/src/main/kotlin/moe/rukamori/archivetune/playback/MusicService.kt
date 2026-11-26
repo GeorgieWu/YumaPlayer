@@ -8,6 +8,12 @@
 
 package moe.rukamori.archivetune.playback
 
+import moe.rukamori.archivetune.audiodsp.CustomEqualizerAudioProcessor
+import moe.rukamori.archivetune.audiodsp.EightDAudioProcessor
+import moe.rukamori.archivetune.audiodsp.LoudnessAudioProcessor
+import moe.rukamori.archivetune.audiodsp.ReverbAudioProcessor
+import moe.rukamori.archivetune.audiodsp.SpatialAudioProcessor
+import moe.rukamori.archivetune.audiodsp.StageAudioProcessor
 import moe.rukamori.archivetune.playback.engine.ExoDeck
 import moe.rukamori.archivetune.playback.engine.ExoDeckController
 import moe.rukamori.archivetune.playback.engine.SafeTrackSelectionFactory
@@ -34,6 +40,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.database.ContentObserver
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.audiofx.BassBoost
@@ -48,9 +55,11 @@ import android.os.PowerManager
 import androidx.core.content.getSystemService
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Player.REPEAT_MODE_OFF
 import androidx.media3.common.util.UnstableApi
@@ -72,11 +81,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import moe.rukamori.archivetune.audiodsp.AudioDeck
 import moe.rukamori.archivetune.audiodsp.AutomixPlan
 import moe.rukamori.archivetune.audiodsp.CrossfadeConfig
@@ -87,26 +105,61 @@ import moe.rukamori.archivetune.audiodsp.DualForwardingPlayer
 import moe.rukamori.archivetune.cast.CastMediaItemResolver
 import moe.rukamori.archivetune.cast.CastPlaybackRepository
 import moe.rukamori.archivetune.cast.CastPlaybackRepositoryLocator
+import moe.rukamori.archivetune.cast.CastScreenState
+import moe.rukamori.archivetune.constants.AudioOffload
+import moe.rukamori.archivetune.constants.AudioPassFixedVolumeKey
+import moe.rukamori.archivetune.constants.AudioPassMode
+import moe.rukamori.archivetune.constants.AudioPassModeKey
+import moe.rukamori.archivetune.constants.AudioPassRestoreKey
 import moe.rukamori.archivetune.constants.AudioQuality
+import moe.rukamori.archivetune.constants.CrossmixAlwaysMixKey
+import moe.rukamori.archivetune.constants.CrossmixLength
+import moe.rukamori.archivetune.constants.CrossmixLengthKey
+import moe.rukamori.archivetune.constants.CrossmixStuntsKey
+import moe.rukamori.archivetune.constants.CrossmixStyleAuto
+import moe.rukamori.archivetune.constants.CrossmixStyleKey
+import moe.rukamori.archivetune.constants.CrossmixTempoKey
+import moe.rukamori.archivetune.constants.CrossmixTempoMatch
+import moe.rukamori.archivetune.constants.HiFiResamplerKey
 import moe.rukamori.archivetune.constants.PlaybackSource
 import moe.rukamori.archivetune.constants.PlayerStreamClient
+import moe.rukamori.archivetune.constants.PreferUsbDacKey
+import moe.rukamori.archivetune.constants.TransitionMode
+import moe.rukamori.archivetune.constants.TransitionModeKey
+import moe.rukamori.archivetune.constants.UsbPassthroughKey
 import moe.rukamori.archivetune.db.MusicDatabase
 import moe.rukamori.archivetune.db.entities.FormatEntity
+import moe.rukamori.archivetune.db.entities.LyricsEntity
 import moe.rukamori.archivetune.db.entities.Song
 import moe.rukamori.archivetune.di.DownloadCache
 import moe.rukamori.archivetune.di.PlayerCache
+import moe.rukamori.archivetune.extensions.collect
 import moe.rukamori.archivetune.extensions.currentMetadata
+import moe.rukamori.archivetune.extensions.metadata
 import moe.rukamori.archivetune.extensions.setOffloadEnabled
+import moe.rukamori.archivetune.extensions.toEnum
 import moe.rukamori.archivetune.lyrics.LyricsHelper
 import moe.rukamori.archivetune.lyrics.LyricsPreloadManager
 import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.models.PersistPlayerState
 import moe.rukamori.archivetune.models.PersistQueue
+import moe.rukamori.archivetune.playback.audio.AudioOutputs
 import moe.rukamori.archivetune.playback.audio.ServiceAudioPolicyHolder
+import moe.rukamori.archivetune.playback.audio.pass.AudioPass
+import moe.rukamori.archivetune.playback.audio.pass.LabSound
+import moe.rukamori.archivetune.playback.audio.pass.PassBlocker
+import moe.rukamori.archivetune.playback.audio.pass.PassBlockersBefore
+import moe.rukamori.archivetune.playback.audio.pass.clearPassBlockers
+import moe.rukamori.archivetune.playback.audio.pass.passBlockersOf
+import moe.rukamori.archivetune.playback.audio.pass.restorePassBlockers
 import moe.rukamori.archivetune.playback.crossfade.isFullyCached
 import moe.rukamori.archivetune.playback.crossfade.kickOffTrackAnalysis
 import moe.rukamori.archivetune.playback.crossfade.registerCacheListenerForKey
 import moe.rukamori.archivetune.playback.crossfade.unregisterAllCacheListeners
+import moe.rukamori.archivetune.playback.crossmix.CrossmixDirector
+import moe.rukamori.archivetune.playback.crossmix.CrossmixSettings
+import moe.rukamori.archivetune.playback.crossmix.CrossmixStyle
+import moe.rukamori.archivetune.playback.crossmix.CrossmixTransitionAudioProcessor
 import moe.rukamori.archivetune.playback.discord.DiscordHoldController
 import moe.rukamori.archivetune.playback.discord.DiscordSyncOrchestrator
 import moe.rukamori.archivetune.playback.engine.PlayerEngineHolder
@@ -124,6 +177,7 @@ import moe.rukamori.archivetune.utils.ProxyAuth
 import moe.rukamori.archivetune.utils.SyncUtils
 import moe.rukamori.archivetune.utils.YTPlayerUtils
 import moe.rukamori.archivetune.utils.dataStore
+import moe.rukamori.archivetune.utils.get
 import moe.rukamori.archivetune.utils.isLocalMediaId
 import moe.rukamori.archivetune.utils.reportException
 import moe.rukamori.archivetune.widget.LoadWidgetInsightsUseCase
@@ -158,9 +212,76 @@ class MusicService :
     @Inject
     lateinit var sponsorBlockPlaybackController: moe.rukamori.archivetune.sponsorblock.SponsorBlockPlaybackController
 
+    @Inject
+    lateinit var equalizerService: EqualizerService
+
+    @Inject
+    lateinit var audioFxService: AudioFxService
+
+    @Inject
+    lateinit var audioLabStore: AudioLabStore
+
+    val isEqualizerServiceActive: Boolean
+        get() = runCatching { equalizerService.isEnabled() }.getOrDefault(false)
+
+    fun releaseEqualizerService() {
+        runCatching { equalizerService.release() }
+    }
+
     internal var scopeJob = Job()
     internal var scope = CoroutineScope(Dispatchers.Main + scopeJob)
     internal var ioScope = CoroutineScope(Dispatchers.IO + scopeJob)
+
+    val audioOutputs by lazy { AudioOutputs(this) }
+    val audioPass by lazy { AudioPass(this, audioOutputs) }
+
+    private val _passBlockers = MutableStateFlow<Set<PassBlocker>>(emptySet())
+    val passBlockers: StateFlow<Set<PassBlocker>> = _passBlockers.asStateFlow()
+
+    var preferredDeviceId: Int? = null
+        private set
+
+    fun setPreferredAudioDevice(deviceId: Int?) {
+        preferredDeviceId = deviceId
+        audioOutputs.select(deviceId)
+    }
+
+    private fun applyOutputRoute(device: AudioDeviceInfo?) {
+        if (playerEngineHolder.isLocalPlayerInitialized) localPlayer.setPreferredAudioDevice(device)
+        secondaryCrossfadePlayer?.setPreferredAudioDevice(device)
+    }
+
+    fun clearPassBlockers() {
+        val lab = audioLabStore
+        val volume = playerVolume.value
+        scope.launch {
+            dataStore.edit { prefs ->
+                prefs[AudioPassRestoreKey] = passJson.encodeToString(PassBlockersBefore.of(prefs, lab, volume))
+                prefs.clearPassBlockers()
+            }
+        }
+        audioLabStore.clearPassBlockers()
+        playerVolume.value = 1f
+    }
+
+    fun restorePassBlockers() {
+        scope.launch {
+            var before: PassBlockersBefore? = null
+            dataStore.edit { prefs ->
+                before = prefs[AudioPassRestoreKey]?.let { runCatching { passJson.decodeFromString<PassBlockersBefore>(it) }.getOrNull() }
+                before?.let(prefs::restorePassBlockers)
+                prefs.remove(AudioPassRestoreKey)
+            }
+            before?.let {
+                audioLabStore.restorePassBlockers(it)
+                playerVolume.value = it.playerVolume
+            }
+        }
+    }
+
+    val canRestorePassBlockers: Flow<Boolean> by lazy {
+        dataStore.data.map { it[AudioPassRestoreKey] != null }.distinctUntilChanged()
+    }
 
     internal val currentPlaybackSourceFlow = MutableStateFlow(PlaybackSource.YT_MUSIC)
     override var currentPlaybackSource: PlaybackSource
@@ -263,6 +384,7 @@ class MusicService :
 
     internal var currentQueue: Queue = EmptyQueue
     var queueTitle: String? = null
+    var queueOriginRoute: String? = null
     @Volatile
     internal var isInitializingQueue = false
 
@@ -332,6 +454,32 @@ class MusicService :
     internal var crossfadeProgress = 0f
     internal var crossfadePlaybackRequested = false
     internal val djFilterByPlayer: ConcurrentHashMap<ExoPlayer, DjFilterAudioProcessor> get() = playerEngineHolder.djFilterByPlayer
+    val crossmixProcessorByPlayer: ConcurrentHashMap<ExoPlayer, CrossmixTransitionAudioProcessor>
+        get() = playerEngineHolder.crossmixProcessorByPlayer
+
+    fun crossmixProcessorFor(player: Player?): CrossmixTransitionAudioProcessor? =
+        playerEngineHolder.crossmixProcessorFor(player)
+
+    var transitionMode: TransitionMode = TransitionMode.OFF
+        internal set
+
+    var crossmixSettings: CrossmixSettings = CrossmixSettings.Default
+        internal set
+
+    lateinit var crossmixDirector: CrossmixDirector
+
+    val isCrossmixDirectorInitialized: Boolean get() = ::crossmixDirector.isInitialized
+
+    private val _crossmixStatus = MutableStateFlow<String?>(null)
+    val crossmixStatus: StateFlow<String?> = _crossmixStatus.asStateFlow()
+
+    val crossmixMixing = MutableStateFlow(false)
+
+    fun testCrossmix() {
+        if (::crossmixDirector.isInitialized) {
+            crossmixDirector.testMix()
+        }
+    }
     internal var lyricsPreloadManager: LyricsPreloadManager? = null
     internal var streamPrefetcher: StreamPrefetcher? = null
     internal val placeholderLookahead by lazy { SpotifyPlaceholderLookahead(this) }
@@ -507,13 +655,21 @@ class MusicService :
             reportException(e)
         }
 
+        audioOutputs.onRouteChanged = ::applyOutputRoute
+        audioOutputs.preferUsb = dataStore.get(PreferUsbDacKey, false)
+        audioOutputs.passthrough = dataStore.get(UsbPassthroughKey, false)
+        audioOutputs.resampler = dataStore.get(HiFiResamplerKey, false)
+        audioOutputs.start()
+        audioPass.start()
+
         val localDjFilter = DjFilterAudioProcessor()
+        val localCrossmixProcessor = CrossmixTransitionAudioProcessor()
         playerListeners = createMusicServicePlayerListeners()
         localPlayer =
             ExoPlayer
                 .Builder(this)
                 .setMediaSourceFactory(createMediaSourceFactory())
-                .setRenderersFactory(createRenderersFactory(localDjFilter))
+                .setRenderersFactory(createRenderersFactory(localDjFilter, localCrossmixProcessor))
                 .setLoadControl(createPrimaryLoadControl())
                 .setTrackSelector(DefaultTrackSelector(this, SafeTrackSelectionFactory()))
                 .setHandleAudioBecomingNoisy(false)
@@ -530,6 +686,7 @@ class MusicService :
                     setOffloadEnabled(false)
                 }
         djFilterByPlayer[localPlayer] = localDjFilter
+        crossmixProcessorByPlayer[localPlayer] = localCrossmixProcessor
         if (moe.rukamori.archivetune.BuildConfig.DEBUG) {
             PlaybackTiming.log("PLAYER_CREATED", startNanos = timingStartNanos)
         }
@@ -554,8 +711,48 @@ class MusicService :
                 addListener(playerListeners)
                 sleepTimer = AdvancedSleepTimer(scope, this)
                 addListener(sleepTimer)
+                addListener(object : Player.Listener {
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int,
+                    ) {
+                        if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                            if (::crossmixDirector.isInitialized && transitionMode == TransitionMode.CROSSMIX) {
+                                crossmixDirector.onUserSeek()
+                            }
+                        }
+                    }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        if (::crossmixDirector.isInitialized && transitionMode == TransitionMode.CROSSMIX) {
+                            crossmixDirector.onItemChanged()
+                            crossmixDirector.schedule()
+                        }
+                    }
+
+                    override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                        if (::crossmixDirector.isInitialized && transitionMode == TransitionMode.CROSSMIX) {
+                            crossmixDirector.schedule()
+                        }
+                    }
+
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (::crossmixDirector.isInitialized && transitionMode == TransitionMode.CROSSMIX) {
+                            crossmixDirector.schedule()
+                        }
+                    }
+
+                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                        if (::crossmixDirector.isInitialized && transitionMode == TransitionMode.CROSSMIX) {
+                            crossmixDirector.schedule()
+                        }
+                    }
+                })
             }
         playerInitialized.value = true
+        crossmixDirector = CrossmixDirector(scope = scope, host = CrossmixHost())
+        observeTransitionSettings()
         queueManager
         widgetUpdater =
             MusicServiceWidgetUpdater(
@@ -619,7 +816,54 @@ class MusicService :
             isBecomingNoisyRegistered = true
         }
 
+        scope.launch {
+            equalizerService.isActiveFlow.collect {
+                applyEqSettings(desiredEqSettings.value)
+            }
+        }
+
         serviceLifecycle.onCreate()
+        observeAudioPassSettings()
+    }
+
+    private fun observeAudioPassSettings() {
+        val labSound = audioLabStore.state.map { LabSound.of(it) }
+        combine(dataStore.data, labSound, playerVolume) { prefs, lab, volume ->
+            passBlockersOf(prefs, lab, volume)
+        }.distinctUntilChanged()
+            .collect(scope) { blockers ->
+                _passBlockers.value = blockers
+                audioOutputs.floatAllowed = PassBlocker.EQUALIZER !in blockers && PassBlocker.AUDIO_FX !in blockers
+            }
+
+        combine(dataStore.data, passBlockers) { prefs, blockers ->
+            PassSettings(
+                enabled = prefs[UsbPassthroughKey] ?: false,
+                mode = prefs[AudioPassModeKey].toEnum(AudioPassMode.Default),
+                blocked = blockers.isNotEmpty(),
+                fixedVolume = prefs[AudioPassFixedVolumeKey] ?: false,
+            )
+        }.distinctUntilChanged().collect(scope) {
+            audioPass.update(it.enabled, it.mode, it.blocked, it.fixedVolume)
+            updateAudioOffload(dataStore.get(AudioOffload, false))
+            applyEqSettings(desiredEqSettings.value)
+        }
+
+        scope.launch {
+            dataStore.data.map { it[PreferUsbDacKey] ?: false }.distinctUntilChanged().collect {
+                audioOutputs.preferUsb = it
+            }
+        }
+        scope.launch {
+            dataStore.data.map { it[UsbPassthroughKey] ?: false }.distinctUntilChanged().collect {
+                audioOutputs.passthrough = it
+            }
+        }
+        scope.launch {
+            dataStore.data.map { it[HiFiResamplerKey] ?: false }.distinctUntilChanged().collect {
+                audioOutputs.resampler = it
+            }
+        }
     }
     internal fun ensureScopesActive() {
         if (!scopeJob.isActive) scopeJob = Job()
@@ -711,7 +955,8 @@ class MusicService :
     ) = handlePresenceAndListenBrainzInternal(mediaId, mediaMetadata, durationMs, positionMs, reason)
 
     override fun updateAudioOffload(enabled: Boolean) {
-        playerEngineHolder.updateAudioOffload(enabled, crossfadeEnabled)
+        val passEngaged = audioPass.engaged
+        playerEngineHolder.updateAudioOffload(enabled, crossfadeEnabled, passEngaged)
     }
 
     internal fun updateWakeLock() = serviceLifecycle.updateWakeLock()
@@ -730,8 +975,33 @@ class MusicService :
 
     internal fun createCrossfadeLoadControl(): DefaultLoadControl = playerEngineHolder.createCrossfadeLoadControl()
 
-    internal fun createRenderersFactory(djFilter: DjFilterAudioProcessor) =
-        playerEngineHolder.createRenderersFactory(this, djFilter)
+    internal fun createRenderersFactory(
+        djFilter: DjFilterAudioProcessor,
+        crossmixProcessor: CrossmixTransitionAudioProcessor? = null,
+    ): androidx.media3.exoplayer.DefaultRenderersFactory {
+        val eq = CustomEqualizerAudioProcessor()
+        if (::equalizerService.isInitialized) {
+            equalizerService.addAudioProcessor(eq)
+        }
+        val stage = if (::audioFxService.isInitialized) StageAudioProcessor(audioFxService) else null
+        val spatial = if (::audioFxService.isInitialized) SpatialAudioProcessor(audioFxService) else null
+        val reverb = if (::audioFxService.isInitialized) ReverbAudioProcessor(audioFxService) else null
+        val loudness = if (::audioFxService.isInitialized) LoudnessAudioProcessor(audioFxService) else null
+        val eightD = if (::audioFxService.isInitialized) EightDAudioProcessor(audioFxService) else null
+        return playerEngineHolder.createRenderersFactory(
+            context = this,
+            djFilter = djFilter,
+            customEq = eq,
+            stage = stage,
+            spatial = spatial,
+            reverb = reverb,
+            loudness = loudness,
+            eightD = eightD,
+            audioOutputs = audioOutputs,
+            audioPass = audioPass,
+            crossmixProcessor = crossmixProcessor,
+        )
+    }
 
     internal fun djFilterFor(player: ExoPlayer?): DjFilterAudioProcessor? = playerEngineHolder.djFilterFor(player)
 
@@ -755,6 +1025,11 @@ class MusicService :
         moe.rukamori.archivetune.playback.discord.createTransientSongFromMedia(media)
 
     override fun onDestroy() {
+        if (::crossmixDirector.isInitialized) {
+            crossmixDirector.release()
+        }
+        audioOutputs.release()
+        audioPass.release()
         if (isBecomingNoisyRegistered) {
             runCatching { unregisterReceiver(becomingNoisyReceiver) }
             isBecomingNoisyRegistered = false
@@ -888,9 +1163,194 @@ class MusicService :
 
     // ── Widget Support ────────────────────────────────────────────────────────────
 
+    private fun observeTransitionSettings() {
+        dataStore.data.map { prefs ->
+            val mode = prefs[TransitionModeKey]?.let { runCatching { TransitionMode.valueOf(it) }.getOrNull() } ?: TransitionMode.OFF
+            val length = prefs[CrossmixLengthKey]?.let { runCatching { CrossmixLength.valueOf(it) }.getOrNull() } ?: CrossmixLength.MEDIUM
+            val tempo = prefs[CrossmixTempoKey]?.let { runCatching { CrossmixTempoMatch.valueOf(it) }.getOrNull() } ?: CrossmixTempoMatch.FULL
+            val styleRaw = prefs[CrossmixStyleKey]
+            val style = if (styleRaw == null || styleRaw == CrossmixStyleAuto) null else runCatching { CrossmixStyle.valueOf(styleRaw) }.getOrNull()
+            val stunts = prefs[CrossmixStuntsKey] ?: true
+            val alwaysMix = prefs[CrossmixAlwaysMixKey] ?: true
+            mode to CrossmixSettings(length, tempo, style, stunts, alwaysMix)
+        }.distinctUntilChanged()
+            .collect(scope) { (mode, settings) ->
+                transitionMode = mode
+                crossmixSettings = settings
+                when (mode) {
+                    TransitionMode.CROSSMIX -> {
+                        crossfadeEnabled = false
+                        automixEnabled = false
+                        cancelPlayerCrossfade(resetVolume = true, resetPauseAtEnd = true)
+                        crossmixDirector.onSettingsChanged()
+                    }
+                    TransitionMode.CROSSFADE, TransitionMode.AUTOMIX -> {
+                        crossmixDirector.release()
+                        _crossmixStatus.value = null
+                        crossfadeEnabled = true
+                        automixEnabled = (mode == TransitionMode.AUTOMIX)
+                        scheduleCrossfade()
+                    }
+                    TransitionMode.OFF -> {
+                        crossmixDirector.release()
+                        _crossmixStatus.value = null
+                        crossfadeEnabled = false
+                        automixEnabled = false
+                        cancelPlayerCrossfade(resetVolume = true, resetPauseAtEnd = true)
+                    }
+                }
+            }
+    }
+
+    private inner class CrossmixHost : CrossmixDirector.Host {
+        override val currentPlayer: ExoPlayer get() = localPlayer
+
+        override fun processorFor(player: Player): CrossmixTransitionAudioProcessor? =
+            playerEngineHolder.crossmixProcessorFor(player)
+
+        override fun createIncoming(index: Int, positionMs: Long, parameters: PlaybackParameters): ExoPlayer {
+            val incomingDjFilter = DjFilterAudioProcessor()
+            val incomingCrossmixProcessor = CrossmixTransitionAudioProcessor()
+            val incoming = ExoPlayer
+                .Builder(this@MusicService)
+                .setMediaSourceFactory(createMediaSourceFactory())
+                .setRenderersFactory(createRenderersFactory(incomingDjFilter, incomingCrossmixProcessor))
+                .setLoadControl(createPrimaryLoadControl())
+                .setTrackSelector(DefaultTrackSelector(this@MusicService, SafeTrackSelectionFactory()))
+                .setHandleAudioBecomingNoisy(false)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
+                .setAudioAttributes(playbackAudioAttributes(), false)
+                .setSeekBackIncrementMs(5000)
+                .setSeekForwardIncrementMs(5000)
+                .build()
+                .apply {
+                    setOffloadEnabled(false)
+                }
+            djFilterByPlayer[incoming] = incomingDjFilter
+            crossmixProcessorByPlayer[incoming] = incomingCrossmixProcessor
+
+            val queueItems = (0 until player.mediaItemCount).mapNotNull {
+                runCatching { player.getMediaItemAt(it) }.getOrNull()
+            }
+            incoming.setMediaItems(queueItems, index.coerceIn(0, (queueItems.size - 1).coerceAtLeast(0)), positionMs)
+            incoming.repeatMode = localPlayer.repeatMode
+            incoming.shuffleModeEnabled = localPlayer.shuffleModeEnabled
+            runCatching { incoming.setShuffleOrder(localPlayer.shuffleOrder) }
+            incoming.playbackParameters = parameters
+            incoming.volume = localPlayer.volume
+            incoming.playWhenReady = false
+            return incoming
+        }
+
+        override fun promote(incoming: ExoPlayer, outgoing: ExoPlayer) {
+            outgoing.pauseAtEndOfMediaItems = true
+
+            transferAudioEffects(incoming)
+            incoming.repeatMode = outgoing.repeatMode
+            incoming.shuffleModeEnabled = outgoing.shuffleModeEnabled
+            runCatching { incoming.setShuffleOrder(outgoing.shuffleOrder) }
+
+            playerEngineHolder.dualForwardingPlayer.attachPlayer(incoming)
+            localPlayer = incoming
+
+            if (controller is ExoDeckController) {
+                val filter = djFilterFor(incoming) ?: DjFilterAudioProcessor()
+                (controller as ExoDeckController).activeDeck = ExoDeck(incoming, filter, isIncoming = false)
+            }
+
+            incoming.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (!crossmixDirector.isTransitioning) {
+                        incoming.removeListener(this)
+                        return
+                    }
+                    if (isPlaying) {
+                        val finished = outgoing.playbackState == Player.STATE_ENDED ||
+                            (outgoing.duration > 0 && outgoing.currentPosition >= outgoing.duration - 250)
+                        if (!finished && !outgoing.playWhenReady) outgoing.play()
+                    } else {
+                        if (outgoing.playWhenReady) outgoing.pause()
+                    }
+                }
+            })
+
+            currentMediaMetadata.value = incoming.currentMetadata
+        }
+
+        override fun release(outgoing: ExoPlayer) {
+            runCatching {
+                outgoing.stop()
+                outgoing.clearMediaItems()
+                outgoing.release()
+            }
+            crossmixProcessorByPlayer.remove(outgoing)
+            djFilterByPlayer.remove(outgoing)
+        }
+
+        override fun discard(incoming: ExoPlayer) {
+            runCatching {
+                incoming.stop()
+                incoming.clearMediaItems()
+                incoming.release()
+            }
+            crossmixProcessorByPlayer.remove(incoming)
+            djFilterByPlayer.remove(incoming)
+        }
+
+        override fun crossmixBlocker(): String? = when {
+            transitionMode != TransitionMode.CROSSMIX -> "Crossfade is set to ${transitionMode.name.lowercase()}, not Crossmix"
+            isCrossfading -> "A plain crossfade is running"
+            player.repeatMode == Player.REPEAT_MODE_ONE -> "Repeat one plays the song straight round"
+            (castPlaybackRepository.screenState.value as? CastScreenState.Success)?.uiState != null -> "Casting: Crossmix waits until you're back"
+            sleepTimer.pauseWhenSongEnd.value -> "The sleep timer stops after this song"
+            else -> null
+        }
+
+        override fun nextIndex(): Int =
+            if (player.repeatMode == Player.REPEAT_MODE_ONE) player.currentMediaItemIndex else player.nextMediaItemIndex
+
+        override suspend fun lyrics(item: MediaItem): String? = withContext(Dispatchers.IO) {
+            val stored = runCatching { database.lyrics(item.mediaId).first()?.lyrics }.getOrNull()
+            if (stored != null) return@withContext stored.takeUnless { it == LyricsEntity.LYRICS_NOT_FOUND }
+            val metadata = item.metadata ?: return@withContext null
+            val lyrics = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
+                runCatching { lyricsHelper.getLyrics(metadata) }.getOrNull()
+            } ?: return@withContext null
+            lyrics.takeUnless { it == LyricsEntity.LYRICS_NOT_FOUND }
+        }
+
+        override fun baseParameters(): PlaybackParameters = player.playbackParameters
+
+        override fun onMixingChanged(mixing: Boolean) {
+            crossmixMixing.value = mixing
+        }
+
+        override fun onStatus(status: String) {
+            _crossmixStatus.value = status
+        }
+
+        override fun albumOf(index: Int): String? {
+            if (!crossfadeGapless || index !in 0 until player.mediaItemCount) return null
+            return player.getMediaItemAt(index).mediaMetadata.albumTitle?.toString()?.takeIf { it.isNotBlank() }
+        }
+
+        override fun settings(): CrossmixSettings = crossmixSettings
+
+        override fun learnedStartLatencyMs(): Double? = null
+
+        override fun onStartLatencyLearned(ms: Double) {}
+
+        override fun kickOffAnalysis(item: MediaItem) {
+            this@MusicService.kickOffTrackAnalysis(item)
+        }
+    }
+
     fun updateWidget() = widgetUpdater.update()
 
     inner class MusicBinder : Binder() {
         val service: MusicService get() = this@MusicService
     }
 }
+
+private data class PassSettings(val enabled: Boolean, val mode: AudioPassMode, val blocked: Boolean, val fixedVolume: Boolean)
+private val passJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }

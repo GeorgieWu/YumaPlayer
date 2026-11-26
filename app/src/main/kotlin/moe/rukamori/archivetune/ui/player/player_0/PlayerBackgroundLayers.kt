@@ -11,6 +11,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,29 +28,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.ExperimentalHazeApi
-import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.HazePerformanceMode
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
-import dev.chrisbanes.haze.blur.hazeBlur
-import dev.chrisbanes.haze.hazeSource
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlin.math.abs
+import moe.rukamori.archivetune.ui.component.LikeBurstState
 import moe.rukamori.archivetune.ui.player.ambient.AmbientBackdrop
 import moe.rukamori.archivetune.ui.player.ambient.FollowPicture
 import moe.rukamori.archivetune.ui.player.ambient.rememberAmbientColors
-import moe.rukamori.archivetune.ui.settings.SettingsDimensions
+import moe.rukamori.archivetune.ui.player.player_0.buttons.PlayerAction
 import moe.rukamori.archivetune.ui.state.PlayerUiState
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun PlayerBackgroundLayers(
     state: PlayerUiState,
@@ -60,8 +51,9 @@ fun PlayerBackgroundLayers(
     lyricsFractionProvider: () -> Float = { if (state.isLyricsVisible) 1f else 0f },
     queueFractionProvider: () -> Float = { 0f },
     onColorsExtracted: (vibrant: Int, darkMuted: Int, gradient: Int) -> Unit = { _, _, _ -> },
+    likeBurst: LikeBurstState? = null,
+    onAction: (PlayerAction) -> Unit = {},
 ) {
-
     val currentState by rememberUpdatedState(state)
     val currentCanvasState by rememberUpdatedState(canvasState)
     val currentExpansionProvider by rememberUpdatedState(expansionFractionProvider)
@@ -73,7 +65,6 @@ fun PlayerBackgroundLayers(
         animationSpec = tween(500),
         label = "BlurOverlayTransition"
     )
-    val playerHazeState = remember { HazeState() }
 
     val isOverlayVisible by remember {
         derivedStateOf {
@@ -97,7 +88,10 @@ fun PlayerBackgroundLayers(
         label = "ImmersiveThemeTransition"
     )
 
-    val targetUrl = state.coverUrl.trim().takeIf(String::isNotBlank)
+    val carousel = LocalSongCarousel.current
+    val closestSlot = carousel?.slots?.minByOrNull { abs(carousel.offsetOf(it)) }
+    val targetUrl = closestSlot?.artworkUri?.trim()?.takeIf(String::isNotBlank)
+        ?: state.coverUrl.trim().takeIf(String::isNotBlank)
 
     key(state.trackUrl) {
         PlayerPaletteExtractor(
@@ -122,40 +116,22 @@ fun PlayerBackgroundLayers(
     val ambientColors = rememberAmbientColors()
     FollowPicture(colors = ambientColors, url = targetUrl.takeIf { state.isLiveBackgroundEnabled })
 
+    var backgroundRootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .drawWithCache {
-                if (state.isLiveBackgroundEnabled) {
-                    onDrawBehind { }
-                } else {
-                    val currentBg = animatedBgColor
-                    val currentGlow = glowTransition
-
-                    val charcoalTone = lerp(Color(0xFF080808), currentBg, 0.05f)
-                    val midTone = lerp(currentBg, Color(0xFF101010), 0.50f)
-                    val deepTone = lerp(currentBg, Color(0xFF060606), 0.90f)
-
-                    val stop0 = lerp(currentBg, charcoalTone, currentGlow)
-                    val stop35 = lerp(currentBg, charcoalTone, currentGlow)
-                    val stop70 = lerp(midTone, currentBg.copy(alpha = 0.70f), currentGlow)
-                    val stop100 = lerp(deepTone, charcoalTone, currentGlow)
-
-                    val brush = Brush.verticalGradient(
-                        0.0f to stop0,
-                        0.35f to stop35,
-                        0.70f to stop70,
-                        1.0f to stop100,
-                        startY = 0f,
-                        endY = size.height
-                    )
-
-                    onDrawBehind {
-                        drawRect(brush = brush)
-                    }
-                }
-            }
+            .background(Color(0xFF080808))
+            .onGloballyPositioned { backgroundRootCoordinates = it }
     ) {
+        if (!state.isLiveBackgroundEnabled) {
+            PlayerGradientBackdrop(
+                carousel = carousel,
+                animatedBgColor = animatedBgColor,
+                glowTransition = glowTransition
+            )
+        }
+
         if (state.isLiveBackgroundEnabled) {
             AmbientBackdrop(
                 colors = ambientColors,
@@ -182,6 +158,7 @@ fun PlayerBackgroundLayers(
                 )
             }
         }
+
         val shouldRenderHeavyBackground by remember {
             derivedStateOf { currentExpansionProvider() > 0.05f }
         }
@@ -190,53 +167,12 @@ fun PlayerBackgroundLayers(
             return@Box
         }
 
-        val painters = rememberPlayerBackgroundPainters(
+        PlayerBlurBackdrop(
+            carousel = carousel,
             targetUrl = targetUrl,
-            needsBlur = needsBlur
+            needsBlur = needsBlur,
+            blurOverlayAlpha = blurOverlayAlpha
         )
-
-
-        if (needsBlur && painters.currentBlurPainter != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = blurOverlayAlpha
-                    }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .hazeSource(playerHazeState)
-                ) {
-                    Image(
-                        painter = painters.currentBlurPainter,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .hazeBlur(
-                            input = HazeInput.Sources(playerHazeState),
-                            style = HazeBlurStyle {
-                                val tintEffect = HazeColorEffect.tint(Color.Black.copy(alpha = 0.35f))
-                                backgroundColor(Color.Transparent)
-                                colorEffects(listOf(tintEffect))
-                                fallbackColorEffect(tintEffect)
-                                blurRadius(56.dp)
-                                noiseFactor(SettingsDimensions.HazeNoiseFactor)
-                            },
-                            performanceMode = HazePerformanceMode.Fixed(SettingsDimensions.HazeQualityFraction),
-                        )
-                )
-            }
-        }
-
-        var isCanvasReady by remember(state.trackUrl) { mutableStateOf(false) }
 
         val isCanvasActive by remember {
             derivedStateOf {
@@ -252,35 +188,58 @@ fun PlayerBackgroundLayers(
             }
         }
 
-        val painter = painters.currentClearPainter
-        if (painter != null && !(isCanvasActive && isCanvasReady)) {
-            Image(
-                painter = painter,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.75f)
-                    .align(Alignment.TopCenter)
-                    .artworkBottomFade(immersiveTransitionAlpha * queueArtworkFade),
-                contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter
-            )
-        }
-
-        if (isCanvasActive) {
-            PlayerCanvasArtworkHost(
+        if (carousel != null && carousel.slots.isNotEmpty()) {
+            PlayerImmersiveCoverCarousel(
+                carousel = carousel,
                 state = state,
                 canvasState = canvasState,
-                immersiveTransitionAlpha = immersiveTransitionAlpha * queueArtworkFade,
+                immersiveTransitionAlpha = immersiveTransitionAlpha,
+                queueArtworkFade = queueArtworkFade,
+                isCanvasActive = isCanvasActive,
                 lyricsFractionProvider = lyricsFractionProvider,
                 queueFractionProvider = queueFractionProvider,
-                onReadyChange = { isCanvasReady = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.75f)
-                    .align(Alignment.TopCenter)
-                    .artworkBottomFade(immersiveTransitionAlpha * queueArtworkFade)
+                backgroundRootCoordinates = backgroundRootCoordinates,
+                modifier = Modifier.align(Alignment.TopCenter),
+                likeBurst = likeBurst,
+                onAction = onAction
             )
+        } else {
+            val painters = rememberPlayerBackgroundPainters(
+                targetUrl = targetUrl,
+                needsBlur = needsBlur
+            )
+            var isCanvasReady by remember(state.trackUrl) { mutableStateOf(false) }
+
+            val painter = painters.currentClearPainter
+            if (painter != null && !(isCanvasActive && isCanvasReady)) {
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.75f)
+                        .align(Alignment.TopCenter)
+                        .artworkBottomFade(immersiveTransitionAlpha * queueArtworkFade),
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter
+                )
+            }
+
+            if (isCanvasActive) {
+                PlayerCanvasArtworkHost(
+                    state = state,
+                    canvasState = canvasState,
+                    immersiveTransitionAlpha = immersiveTransitionAlpha * queueArtworkFade,
+                    lyricsFractionProvider = lyricsFractionProvider,
+                    queueFractionProvider = queueFractionProvider,
+                    onReadyChange = { isCanvasReady = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.75f)
+                        .align(Alignment.TopCenter)
+                        .artworkBottomFade(immersiveTransitionAlpha * queueArtworkFade)
+                )
+            }
         }
     }
 }

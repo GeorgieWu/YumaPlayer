@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +26,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -41,6 +46,8 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import coil3.request.error
+import coil3.request.placeholder
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.ui.haptics.LocalYumaHaptics
@@ -63,6 +70,7 @@ fun PlayerCoverCard(
     onCoverLoaded: () -> Unit = {}, // <-- Новый колбэк
     onNext: () -> Unit = {},
     onPrevious: () -> Unit = {},
+    onDoubleTap: ((Offset) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val shadowColor = MaterialTheme.colorScheme.scrim
@@ -79,6 +87,7 @@ fun PlayerCoverCard(
     val snapThresholdPx = with(density) { 80.dp.toPx() }
 
     var currentPainter by remember { mutableStateOf<Painter?>(null) }
+    var rootBounds by remember { mutableStateOf(Rect.Zero) }
     var activeVibrantColor by remember { mutableStateOf(Color.Transparent) }
 
     val cleanUrl = coverUrl?.trim()?.takeIf(String::isNotBlank)
@@ -145,13 +154,14 @@ fun PlayerCoverCard(
     }
 
     val shape24 = remember { RoundedCornerShape(24.dp) }
+    val carousel = LocalSongCarousel.current
+    val cardGapPx = 0f
 
     Box(
         modifier = modifier
             .aspectRatio(1f, matchHeightConstraintsFirst = true)
             .graphicsLayer {
-                translationX = offsetX.value
-                val isDraggingCover = abs(offsetX.value) > 1f
+                val isDraggingCover = if (carousel != null) carousel.dragging else abs(offsetX.value) > 1f
                 shadowElevation = if (isDraggingCover) 6.dp.toPx() else 14.dp.toPx()
                 shape = shape24
                 clip = false
@@ -160,49 +170,76 @@ fun PlayerCoverCard(
             }
             .then(
                 if (gestureEnabled) {
-                    Modifier.pointerInput(key1 = onNext, key2 = onPrevious) {
-                        detectHorizontalDragGestures(
-                            onDragStart = { accumulatedDragX = 0f },
-                            onDragEnd = {
-                                coroutineScope.launch {
-                                    if (abs(accumulatedDragX) > snapThresholdPx) {
-                                        haptics.gestureThresholdActivate()
-                                        if (accumulatedDragX > 0) onPrevious() else onNext()
-                                    }
-                                    accumulatedDragX = 0f
-                                    offsetX.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = spring(
-                                            dampingRatio = 0.78f,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    )
-                                }
+                    if (carousel != null) {
+                        Modifier.carouselDragGesture(
+                            carousel = carousel,
+                            enabled = gestureEnabled,
+                            spacingPxProvider = {
+                                if (rootBounds.width > 0f) rootBounds.width else with(density) { 300.dp.toPx() }
                             },
-                            onDragCancel = {
-                                coroutineScope.launch {
-                                    accumulatedDragX = 0f
-                                    offsetX.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = spring(
-                                            dampingRatio = 0.78f,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    )
-                                }
-                            },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                coroutineScope.launch {
-                                    accumulatedDragX += dragAmount
-                                    val dragFraction = (abs(accumulatedDragX) / (size.width.toFloat() * 1.5f)).coerceIn(0f, 1f)
-                                    val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
-                                    val finalOffset = if (accumulatedDragX > 0) tensionOffset else -tensionOffset
-                                    offsetX.snapTo(finalOffset)
-                                }
-                            }
+                            flingThresholdPx = with(density) { 400.dp.toPx() },
+                            onNext = onNext,
+                            onPrevious = onPrevious,
+                            onCommit = { haptics.gestureThresholdActivate() },
                         )
+                    } else {
+                        Modifier.pointerInput(key1 = onNext, key2 = onPrevious) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { accumulatedDragX = 0f },
+                                onDragEnd = {
+                                    coroutineScope.launch {
+                                        if (abs(accumulatedDragX) > snapThresholdPx) {
+                                            haptics.gestureThresholdActivate()
+                                            if (accumulatedDragX > 0) onPrevious() else onNext()
+                                        }
+                                        accumulatedDragX = 0f
+                                        offsetX.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = spring(
+                                                dampingRatio = 0.78f,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        )
+                                    }
+                                },
+                                onDragCancel = {
+                                    coroutineScope.launch {
+                                        accumulatedDragX = 0f
+                                        offsetX.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = spring(
+                                                dampingRatio = 0.78f,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        )
+                                    }
+                                },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    coroutineScope.launch {
+                                        accumulatedDragX += dragAmount
+                                        val dragFraction = (abs(accumulatedDragX) / (size.width.toFloat() * 1.5f)).coerceIn(0f, 1f)
+                                        val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
+                                        val finalOffset = if (accumulatedDragX > 0) tensionOffset else -tensionOffset
+                                        offsetX.snapTo(finalOffset)
+                                    }
+                                }
+                            )
+                        }
                     }
+                } else {
+                    Modifier
+                }
+            )
+            .then(
+                if (gestureEnabled && onDoubleTap != null) {
+                    Modifier
+                        .onGloballyPositioned { rootBounds = it.boundsInRoot() }
+                        .pointerInput(onDoubleTap) {
+                            detectTapGestures(
+                                onDoubleTap = { pos -> onDoubleTap(rootBounds.topLeft + pos) }
+                            )
+                        }
                 } else {
                     Modifier
                 }
@@ -211,39 +248,89 @@ fun PlayerCoverCard(
             .background(surfaceColor),
         contentAlignment = Alignment.Center
     ) {
-        val isCanvasActive = canvasHostEnabled && canvasState.isCanvasEnabled && canvasState.artwork != null
         val placeholder = painterResource(id = placeholderResId)
 
-        val bgPainter = previousPainter ?: currentPainter ?: placeholder
-        Image(
-            painter = bgPainter,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
+        if (carousel != null && carousel.slots.isNotEmpty()) {
+            for (slot in carousel.slots) {
+                key(slot.uid) {
+                    val slotUrl = slot.artworkUri?.trim()?.takeIf(String::isNotBlank)
+                    val slotRequest = remember(slotUrl) {
+                        ImageRequest.Builder(context)
+                            .data(slotUrl)
+                            .placeholder(placeholderResId)
+                            .error(placeholderResId)
+                            .apply {
+                                if (slotUrl != null) {
+                                    memoryCacheKey(slotUrl)
+                                    diskCacheKey(slotUrl)
+                                }
+                            }
+                            .build()
+                    }
+                    val slotPainter = rememberAsyncImagePainter(model = slotRequest)
+                    val isCurrent = slot.step == carousel.step
+                    val isCanvasActive = isCurrent && canvasHostEnabled && canvasState.isCanvasEnabled && canvasState.artwork != null
 
-        if (currentPainter != null && currentPainter != previousPainter) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val o = carousel.offsetOf(slot)
+                                translationX = o * (size.width + cardGapPx)
+                                alpha = (1f - abs(o) * 0.5f).coerceIn(0f, 1f)
+                            }
+                    ) {
+                        Image(
+                            painter = slotPainter,
+                            contentDescription = if (isCurrent) stringResource(R.string.album_art_large) else null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+
+                        if (isCanvasActive) {
+                            CanvasArtworkPlayer(
+                                primaryUrl = canvasState.primaryUrl,
+                                fallbackUrl = canvasState.fallbackUrl,
+                                isPlaying = isPlaying,
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            val isCanvasActive = canvasHostEnabled && canvasState.isCanvasEnabled && canvasState.artwork != null
+            val bgPainter = previousPainter ?: currentPainter ?: placeholder
             Image(
-                painter = currentPainter!!,
-                contentDescription = stringResource(R.string.album_art_large),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = newArtAlpha.value
-                    },
+                painter = bgPainter,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
-        }
 
-        // Canvas
-        if (isCanvasActive) {
-            CanvasArtworkPlayer(
-                primaryUrl = canvasState.primaryUrl,
-                fallbackUrl = canvasState.fallbackUrl,
-                isPlaying = isPlaying,
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (currentPainter != null && currentPainter != previousPainter) {
+                Image(
+                    painter = currentPainter!!,
+                    contentDescription = stringResource(R.string.album_art_large),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = newArtAlpha.value
+                        },
+                    contentScale = ContentScale.Crop,
+                )
+            }
+
+            if (isCanvasActive) {
+                CanvasArtworkPlayer(
+                    primaryUrl = canvasState.primaryUrl,
+                    fallbackUrl = canvasState.fallbackUrl,
+                    isPlaying = isPlaying,
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
