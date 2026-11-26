@@ -1,8 +1,6 @@
 package moe.rukamori.archivetune.ui.player.player_0
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -48,6 +46,7 @@ import coil3.request.allowHardware
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.MiniPlayerHeight
 import moe.rukamori.archivetune.ui.component.MarqueeText
+import moe.rukamori.archivetune.ui.haptics.rememberYumaHaptics
 import moe.rukamori.archivetune.ui.player.player_0.buttons.MiniPlayerButtons
 import moe.rukamori.archivetune.ui.player.player_0.buttons.PlayerAction
 import moe.rukamori.archivetune.ui.state.PlayerUiState
@@ -65,6 +64,7 @@ internal fun MiniPlayerContentInternal(
     isVisible: Boolean = true
 ) {
     val context = LocalContext.current
+    val haptics = rememberYumaHaptics()
     var progressMs by remember { mutableLongStateOf(playbackProgress.value) }
 
     LaunchedEffect(isVisible, playbackProgress) {
@@ -73,21 +73,8 @@ internal fun MiniPlayerContentInternal(
         playbackProgress.collect { progressMs = it }
     }
 
-    val rotation = remember { Animatable(0f) }
+    val coverMorphState = LocalCoverMorphState.current
     val isAudible = state.isPlaying && state.isReady
-
-    LaunchedEffect(isAudible, isVisible) {
-        if (isAudible && isVisible) {
-            while (true) {
-                val currentDegree = rotation.value % 360f
-                rotation.snapTo(currentDegree)
-                rotation.animateTo(
-                    targetValue = currentDegree + 360f,
-                    animationSpec = tween(durationMillis = 15000, easing = LinearEasing)
-                )
-            }
-        }
-    }
 
     Row(
         modifier = modifier
@@ -96,7 +83,10 @@ internal fun MiniPlayerContentInternal(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onMediaAreaClick
+                onClick = {
+                    haptics.click()
+                    onMediaAreaClick()
+                }
             )
             .padding(start = 12.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -123,7 +113,10 @@ internal fun MiniPlayerContentInternal(
                 modifier = Modifier
                     .size(40.dp)
                     .aspectRatio(1f)
-                    .graphicsLayer { rotationZ = rotation.value }
+                    .graphicsLayer {
+                        rotationZ = coverMorphState?.vinylRotationDeg?.invoke() ?: 0f
+                        alpha = if (coverMorphState?.isMorphActive() == true) 0f else 1f
+                    }
                     .clip(CircleShape)
             ) {
                 val targetUrl = state.coverUrl.takeIf { it.isNotBlank() }

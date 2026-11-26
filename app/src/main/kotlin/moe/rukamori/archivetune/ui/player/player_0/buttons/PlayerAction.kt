@@ -9,7 +9,7 @@ sealed interface PlayerAction {
     object SkipNext : PlayerAction
 
     // Назад (закрывает и Previous, и SkipPrevious)
-    object Previous : PlayerAction
+    data class Previous(val forceSkip: Boolean = false) : PlayerAction
     object SkipPrevious : PlayerAction
 
     // Лайки
@@ -53,6 +53,7 @@ sealed interface PlayerAction {
     // Навигация по метаданным и функции плеера
     object OpenAlbum : PlayerAction
     object OpenArtist : PlayerAction
+    data class OpenQueueOrigin(val route: String) : PlayerAction
     object StartRadio : PlayerAction
     object AddToPlaylist : PlayerAction
     object TogglePin : PlayerAction

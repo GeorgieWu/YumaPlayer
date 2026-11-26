@@ -132,14 +132,6 @@ fun ScaffoldShell(
                 isVisible = LocalGlobalVisibility.current && contentVisible,
                 modifier = Modifier.fillMaxSize(),
             )
-            if (splashEnabled) {
-                SplashOverlay(
-                    isDark = useDarkTheme,
-                    onBurstStart = onBurstStart,
-                    onPrewarmStart = onPrewarmStart,
-                    onDismiss = onSplashDismiss,
-                )
-            }
             if (contentMounted || !splashEnabled) {
                 Row(
                     modifier = Modifier
@@ -157,16 +149,17 @@ fun ScaffoldShell(
                             }
                         },
                 ) {
-                    ScaffoldNavigationRailChrome(
-                        appState = appState,
-                        disableAnimations = disableAnimations,
-                        pureBlack = pureBlack,
-                    )
-
                     // The embedded login WebView must draw outside Haze's retained capture layers.
                     val isLoginScreen = appState.currentRoute?.substringBefore('?') == LOGIN_ROUTE
                     val scaffoldHazeState = rememberScaffoldHazeState(captureEnabled = !isLoginScreen)
                     val barScrollVisibility = rememberBarScrollVisibility()
+
+                    ScaffoldNavigationRailChrome(
+                        appState = appState,
+                        hazeState = scaffoldHazeState.effectiveHazeState,
+                        disableAnimations = disableAnimations,
+                        pureBlack = pureBlack,
+                    )
 
                     Box(
                         modifier = Modifier.fillMaxSize().nestedScroll(barScrollVisibility.nestedScrollConnection),
@@ -236,6 +229,14 @@ fun ScaffoldShell(
                         )
                     }
                 }
+            }
+            if (splashEnabled) {
+                SplashOverlay(
+                    isDark = useDarkTheme,
+                    onBurstStart = onBurstStart,
+                    onPrewarmStart = onPrewarmStart,
+                    onDismiss = onSplashDismiss,
+                )
             }
         }
     }

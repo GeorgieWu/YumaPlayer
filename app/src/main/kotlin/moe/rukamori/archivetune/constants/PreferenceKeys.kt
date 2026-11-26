@@ -295,6 +295,47 @@ enum class AutomixTransitionDuration(val value: String) {
     S16("16"),
     S20("20"),
 }
+
+enum class TransitionMode {
+    OFF,
+    CROSSFADE,
+    AUTOMIX,
+    CROSSMIX,
+}
+
+val TransitionModeKey = stringPreferencesKey("transitionMode")
+val CrossmixLengthKey = stringPreferencesKey("crossmixLength")
+val CrossmixTempoKey = stringPreferencesKey("crossmixTempo")
+val CrossmixStyleKey = stringPreferencesKey("crossmixStyle")
+val CrossmixStuntsKey = booleanPreferencesKey("crossmixStunts")
+val CrossmixAlwaysMixKey = booleanPreferencesKey("crossmixAlwaysMix")
+val SkipBlendKey = booleanPreferencesKey("skipBlend")
+val SkipBlendAheadKey = intPreferencesKey("skipBlendAhead")
+
+const val CrossmixStyleAuto = "AUTO"
+const val SkipBlendAheadMax = 4
+
+enum class CrossmixLength(val scale: Float) {
+    SHORT(0.6f),
+    MEDIUM(1f),
+    LONG(1.5f),
+}
+
+enum class CrossmixTempoMatch(val maxSpeedUp: Float) {
+    OFF(0.006f),
+    GENTLE(0.04f),
+    FULL(0.10f),
+}
+
+enum class TransportEffect(val label: String) {
+    OFF("None"),
+    ECHO("Echo"),
+    REWIND("Rewind"),
+    TAPE_STOP("Tape stop"),
+    FAR_AWAY("Fade to far"),
+    REVERB("Reverb wash"),
+    FILTER("Filter sweep"),
+}
 val AutoLoadMoreKey = booleanPreferencesKey("autoLoadMore")
 val AutoDownloadOnLikeKey = booleanPreferencesKey("autoDownloadOnLike")
 val AutoSkipNextOnErrorKey = booleanPreferencesKey("autoSkipNextOnError")
@@ -320,6 +361,31 @@ val EqualizerVirtualizerEnabledKey = booleanPreferencesKey("equalizerVirtualizer
 val EqualizerVirtualizerStrengthKey = intPreferencesKey("equalizerVirtualizerStrength")
 val EqualizerSelectedProfileIdKey = stringPreferencesKey("equalizerSelectedProfileId")
 val EqualizerCustomProfilesJsonKey = stringPreferencesKey("equalizerCustomProfilesJson")
+val AudioLabStateJsonKey = stringPreferencesKey("audioLabStateJson")
+
+val PreferUsbDacKey = booleanPreferencesKey("preferUsbDac")
+val UsbPassthroughKey = booleanPreferencesKey("usbDacPassthrough")
+val HiResOutputKey = booleanPreferencesKey("hiResFloatOutput")
+val HiFiResamplerKey = booleanPreferencesKey("hiFiResampler")
+val AudioPassModeKey = stringPreferencesKey("audioPassMode")
+val AudioPassFixedVolumeKey = booleanPreferencesKey("audioPassFixedVolume")
+val AudioPassRestoreKey = stringPreferencesKey("audioPassRestore")
+
+enum class AudioPassMode(val minSdk: Int) {
+    SONG_RATE(34),
+    BIT_PERFECT(34),
+    DIRECT_USB(24),
+    EXCLUSIVE_USB(27),
+    EXCLUSIVE_DAC(27),
+    ;
+
+    val exclusive: Boolean get() = this != SONG_RATE
+
+    companion object {
+        val Default: AudioPassMode
+            get() = if (android.os.Build.VERSION.SDK_INT >= 34) SONG_RATE else DIRECT_USB
+    }
+}
 
 val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
 val SmartTrimmerKey = booleanPreferencesKey("smartTrimmer")
@@ -714,6 +780,10 @@ val UseSpotifySearchKey = booleanPreferencesKey("use_spotify_search")
 val SpotifySyncLikesKey = booleanPreferencesKey("spotify_sync_likes")
 val HideYtmLikedSongsKey = booleanPreferencesKey("hide_ytm_liked_songs")
 val EnableLosslessKey = booleanPreferencesKey("enable_lossless")
+val EnableMonochromeKey = booleanPreferencesKey("enable_monochrome")
+val EnableQobuzKey = booleanPreferencesKey("enable_qobuz")
+val MonochromeServersKey = stringPreferencesKey("monochrome_servers")
+val LosslessProviderOrderKey = stringPreferencesKey("lossless_provider_order")
 val MemoryCacheToggleKey = booleanPreferencesKey("memory_cache_toggle")
 val DownloadLocationUriKey = stringPreferencesKey("download_location_uri")
 val QobuzAppIdKey = stringPreferencesKey("qobuz_app_id")
@@ -860,3 +930,5 @@ enum class UpdateChannel {
 val SponsorBlockEnabledKey = booleanPreferencesKey("sponsorBlockEnabled")
 val SponsorBlockCategoriesKey = stringSetPreferencesKey("sponsorBlockCategories")
 val SponsorBlockApiUrlKey = stringPreferencesKey("sponsorBlockApiUrl")
+
+val AddonRepositoriesKey = stringPreferencesKey("addonRepositories")

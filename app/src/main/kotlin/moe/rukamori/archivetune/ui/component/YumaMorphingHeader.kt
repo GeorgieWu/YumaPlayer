@@ -5,34 +5,32 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import moe.rukamori.archivetune.core.common.math.lerp
 import moe.rukamori.archivetune.core.common.math.lerp3
-import coil3.compose.AsyncImage
 import moe.rukamori.archivetune.ui.utils.resize
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.Dp
 
 
 /**
@@ -40,12 +38,13 @@ import androidx.compose.ui.unit.Dp
  */
 enum class HeaderType(
     val heightRatio: Float,
-    val showBottomGradient: Boolean
+    val showBottomGradient: Boolean,
+    val midScale: Float = 0.44f,
 ) {
-    ARTIST(heightRatio = 1.45f, showBottomGradient = true),
+    ARTIST(heightRatio = 1.45f, showBottomGradient = true, midScale = 0.64f),
     ALBUM(heightRatio = 1.35f, showBottomGradient = true),
     PLAYLIST(heightRatio = 1.35f, showBottomGradient = true),
-    SPOTIFY(heightRatio = 1.0f, showBottomGradient = false)
+    SPOTIFY(heightRatio = 1.0f, showBottomGradient = false),
 }
 
 @Composable
@@ -83,13 +82,13 @@ fun YumaMorphingHeader(
                 .graphicsLayer {
                     transformOrigin = TransformOrigin(0.5f, 0.5f)
 
-                    val currentScale = lerp3(start = 1f, mid = 0.44f, end = 0f, fraction = fraction)
+                    val currentScale = lerp3(start = 1f, mid = type.midScale, end = 0f, fraction = fraction)
                     scaleX = currentScale
                     scaleY = currentScale
 
                     translationY = lerp3(start = 0f, mid = 0f, end = endOffset, fraction = fraction)
 
-                    val cornerPercent = lerp3(start = 0f, mid = 32f, end = 50f, fraction = fraction).toInt()
+                    val cornerPercent = lerp3(start = 0f, mid = 18f, end = 50f, fraction = fraction).toInt()
                     shape = RoundedCornerShape(percent = cornerPercent)
                     clip = true
 
@@ -97,9 +96,7 @@ fun YumaMorphingHeader(
                         if (!disableBlur && fraction > 0.70f) {
                             val blurProgress = (fraction - 0.70f) / 0.30f
                             val blurRadius = lerp(0.1f, 40f, blurProgress)
-                            renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                blurRadius, blurRadius, android.graphics.Shader.TileMode.CLAMP
-                            ).asComposeRenderEffect()
+                            renderEffect = BlurEffectCache.get(blurRadius)
                         } else {
                             renderEffect = null
                         }
@@ -111,7 +108,7 @@ fun YumaMorphingHeader(
         ) {
             AsyncImage(
                 model = if (type == HeaderType.ARTIST) {
-                    imageUrl?.resize(1080, 1080).orEmpty()
+                    imageUrl?.resize(1080, 1080, smartCrop = false).orEmpty()
                 } else {
                     imageUrl.orEmpty()
                 },
@@ -124,15 +121,19 @@ fun YumaMorphingHeader(
             if (type.showBottomGradient) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .height(138.dp)
+                        .align(Alignment.BottomCenter)
                         .graphicsLayer {
                             alpha = (1f - fraction * 2f).coerceIn(0f, 1f)
+                            if (!disableBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                renderEffect = BlurEffectCache.get(20f)
+                            }
                         }
                         .background(
                             Brush.verticalGradient(
                                 0.0f to Color.Transparent,
-                                0.60f to Color.Transparent,
-                                0.88f to surfaceColor.copy(alpha = 0.75f),
+                                0.45f to surfaceColor.copy(alpha = 0.75f),
                                 1.0f to surfaceColor
                             )
                         )
@@ -154,26 +155,21 @@ fun YumaMorphingHeader(
 }
 
 
-
-/**
- * Единый расчет сжатия шапки с быстрой и отзывчивой динамикой (как на экране артиста).
- */
 @Composable
-fun rememberCollapseFraction(
+fun rememberArtistCollapseFraction(
     lazyListState: LazyListState,
-    maxScrollDistance: Dp = 420.dp // Дистанция быстрого схлопывания с артиста
+    collapseDistance: Dp = 240.dp,
 ): State<Float> {
     val density = LocalDensity.current
-    return remember(lazyListState, maxScrollDistance) {
+    return remember(lazyListState, collapseDistance) {
         derivedStateOf {
-            val maxScrollPx = with(density) { maxScrollDistance.toPx() }
-            if (maxScrollPx <= 0f) {
-                1f
-            } else if (lazyListState.firstVisibleItemIndex > 0) {
-                1f
-            } else {
-                (lazyListState.firstVisibleItemScrollOffset / maxScrollPx).coerceIn(0f, 1f)
+            val maxScrollPx = with(density) { collapseDistance.toPx() }
+            val scrollProgress = when {
+                maxScrollPx <= 0f -> 1f
+                lazyListState.firstVisibleItemIndex > 0 -> 1f
+                else -> (lazyListState.firstVisibleItemScrollOffset / maxScrollPx).coerceIn(0f, 1f)
             }
+            0.5f + 0.5f * scrollProgress
         }
     }
 }

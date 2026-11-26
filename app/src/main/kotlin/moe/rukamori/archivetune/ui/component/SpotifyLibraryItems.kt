@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -45,6 +46,7 @@ import moe.rukamori.archivetune.constants.ThumbnailCornerRadius
 import moe.rukamori.archivetune.spotify.SpotifyMapper
 import moe.rukamori.archivetune.spotify.models.SpotifyPlaylist
 import moe.rukamori.archivetune.spotify.models.SpotifyTrack
+import moe.rukamori.archivetune.ui.navigation.containerTransformSource
 import moe.rukamori.archivetune.ui.settings.SettingsAnimations
 import moe.rukamori.archivetune.ui.settings.SettingsDimensions
 import moe.rukamori.archivetune.ui.theme.LocalYumaColors
@@ -70,6 +72,11 @@ fun SpotifyLibraryPlaylistListItem(
         modifier =
             modifier
                 .fillMaxWidth()
+                .containerTransformSource(
+                    key = "playlist-${playlist.id}",
+                    cornerRadius = SettingsDimensions.LibrarySheetRadius,
+                    coverUrl = thumbnailUrl,
+                )
                 .yumaClickable(
                     pressedScale = SettingsAnimations.PressScale,
                     onClick = { navController.navigate("spotify_playlist/${playlist.id}") },
@@ -293,11 +300,12 @@ fun SpotifyTrackListItem(
     showSongIconPlaceholder: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {},
 ) {
+    val context = LocalContext.current
     val duration =
         track.durationMs
             .takeIf { it > 0 }
             ?.toLong()
-            ?.let(::makeTimeString)
+            ?.let { makeTimeString(it, context) }
     val subtitle =
         joinByBullet(
             track.artists.joinToString { it.name },
